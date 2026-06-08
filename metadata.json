@@ -1,0 +1,6 @@
+{
+  "name": "Digital Artisan Dashboard",
+  "description": "Un dashboard premium tout-en-un pour les Digital Artisans solos, centralisant la génération de posts réseaux sociaux, de composants de code intelligents, d'assistants copywriting & SEO, et d'assets de design.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
