@@ -728,6 +728,441 @@ ${buildBrandPrompt(brandIdentity)}`,
     }
   });
 
+  // 7.5. Agent Bâtisseur - Project Generator
+  app.post("/api/generate-project", async (req: Request, res: Response) => {
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: "Le descriptif du projet est obligatoire." });
+    }
+
+    try {
+      const systemInstruction = `Tu es l'Agent Bâtisseur de handCode. Ton rôle est de transformer un cahier des charges en code prêt pour la production dans ARTISAN_OS.
+
+TON PROCESSUS :
+1. Data Model : Analyse le besoin et génère le script SQL pour créer les tables Supabase nécessaires (avec les relations clés étrangères).
+2. Component Factory : Génère les composants React (Next.js/Tailwind) nécessaires pour afficher et modifier ces données.
+3. API Logic : Génère les fonctions utilitaires pour appeler ces données via le client Supabase.
+
+RÈGLES DE SORTIE :
+- Toujours utiliser TypeScript.
+- Toujours utiliser Tailwind CSS pour le style.
+- Toujours inclure une gestion d'erreur basique pour chaque requête API.
+- Le code doit être 'copy-paste ready' pour mon dashboard.
+
+Renvoie les données structurées sous la forme d'un objet JSON contenant exactement ces trois propriétés :
+- sql: le script SQL de création des tables Supabase
+- ui: le code React complet de l'interface d'affichage et de modification (avec design Tailwind, gestion d'états, types TS d'interface, boutons d'action correspondants)
+- api: le code TypeScript des fonctions utilitaires avec le client Supabase (import de createClient optionnel, avec gestion d'erreurs basique, requêtes select, insert, update, ou delete pour ces tables).`;
+
+      const response = await generateContentWithRetry({
+        model: "gemini-3.5-flash",
+        contents: `Voici le cahier des charges ou descriptif du projet à modéliser et coder :\n\n"${prompt}"`,
+        config: {
+          systemInstruction,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              sql: { type: Type.STRING, description: "Script SQL de création de tables Supabase avec contraintes et clés étrangères si besoin" },
+              ui: { type: Type.STRING, description: "Code complet du composant React / Tailwind avec typage TypeScript, gestion d'erreurs, formulaires ou boutons de mise à jour" },
+              api: { type: Type.STRING, description: "Fonctions utilitaires TypeScript complètes pour intégration de Supabase" }
+            },
+            required: ["sql", "ui", "api"]
+          }
+        }
+      });
+
+      const data = parseGeminiJson(response.text);
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.warn("API Key issue or model error in Builder Agent API, initiating programmatic fallback generator:", error.message || error);
+      
+      const pLower = prompt.toLowerCase();
+      
+      // Determine if it matches Resto-Livr/Repas/Livreurs/Deliveries
+      const isRestoLivr = pLower.includes("resto") || pLower.includes("livr") || pLower.includes("repas") || pLower.includes("abidjan") || pLower.includes("cmd") || pLower.includes("manger") || pLower.includes("commandes") || pLower.includes("delivery") || pLower.includes("courier");
+      const isEcommerce = pLower.includes("e-commerce") || pLower.includes("lome") || pLower.includes("lome") || pLower.includes("cosmetic") || pLower.includes("boutique") || pLower.includes("shop") || pLower.includes("ventes") || pLower.includes("stock") || pLower.includes("produit") || pLower.includes("product") || pLower.includes("inventair");
+      const isCrm = pLower.includes("crm") || pLower.includes("lead") || pLower.includes("prospect") || pLower.includes("client") || pLower.includes("pipeline") || pLower.includes("commercial");
+
+      let fallbackData = {
+        sql: "",
+        ui: "",
+        api: "",
+        apiKeyWarning: true
+      };
+
+      if (isRestoLivr) {
+        fallbackData.sql = `-- =========================================================\n` +
+          `-- SCHÉMA SQL SUPABASE - PROJET RESTO-LIVR (JEAN-LUC K.)\n` +
+          `-- =========================================================\n\n` +
+          `-- Table des livreurs / coursiers partenaires d'Abidjan\n` +
+          `CREATE TABLE public.couriers (\n` +
+          `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
+          `    name TEXT NOT NULL,\n` +
+          `    phone TEXT NOT NULL,\n` +
+          `    email TEXT UNIQUE,\n` +
+          `    status TEXT DEFAULT 'Disponible' NOT NULL CHECK (status IN ('Disponible', 'En livraison')),\n` +
+          `    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
+          `);\n\n` +
+          `-- Table des commandes / livraisons de repas\n` +
+          `CREATE TABLE public.orders (\n` +
+          `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
+          `    customer_name TEXT NOT NULL,\n` +
+          `    restaurant_name TEXT NOT NULL,\n` +
+          `    delivery_address TEXT NOT NULL,\n` +
+          `    price NUMERIC NOT NULL DEFAULT 0 CHECK (price >= 0),\n` +
+          `    status TEXT DEFAULT 'En attente' NOT NULL CHECK (status IN ('En attente', 'En cours', 'Livré')),\n` +
+          `    courier_id UUID REFERENCES public.couriers(id) ON DELETE SET NULL,\n` +
+          `    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
+          `);\n\n` +
+          `-- Indexation de performance pour la jointure et le filtrage des livraisons\n` +
+          `CREATE INDEX idx_orders_courier ON public.orders(courier_id);\n` +
+          `CREATE INDEX idx_orders_status ON public.orders(status);\n\n` +
+          `-- Insertion de données de test de démonstration\n` +
+          `INSERT INTO public.couriers (name, phone, email, status) VALUES\n` +
+          `('Abdoulaye Touré', '+225 07 48 99 12 34', 'abdoulaye@resto-livr.ci', 'Disponible'),\n` +
+          `('Koffi Kouamé', '+225 05 55 11 22 33', 'koffi@resto-livr.ci', 'Disponible'),\n` +
+          `('Moussa Diakité', '+225 01 02 03 04 05', 'moussa@resto-livr.ci', 'En livraison');\n`;
+
+        fallbackData.ui = `import React, { useState } from 'react';\n` +
+          `import { Truck, Clock, AlertCircle, CheckCircle, ArrowRight, MapPin, Phone } from 'lucide-react';\n\n` +
+          `// Interfaces TypeScript d'Interface\n` +
+          `export interface Courier {\n` +
+          `  id: string;\n` +
+          `  name: string;\n` +
+          `  phone: string;\n` +
+          `  status: 'Disponible' | 'En livraison';\n` +
+          `}\n\n` +
+          `export interface Order {\n` +
+          `  id: string;\n` +
+          `  customer_name: string;\n` +
+          `  restaurant_name: string;\n` +
+          `  delivery_address: string;\n` +
+          `  price: number;\n` +
+          `  status: 'En attente' | 'En cours' | 'Livré';\n` +
+          `  courier_id: string | null;\n` +
+          `}\n\n` +
+          `interface DeliveryUpdateControlProps {\n` +
+          `  order: Order;\n` +
+          `  availableCouriers: Courier[];\n` +
+          `  onStartDelivery: (orderId: string, courierId: string) => Promise<void>;\n` +
+          `}\n\n` +
+          `export default function DeliveryUpdateControl({ order, availableCouriers, onStartDelivery }: DeliveryUpdateControlProps) {\n` +
+          `  const [selectedCourierId, setSelectedCourierId] = useState('');\n` +
+          `  const [loading, setLoading] = useState(false);\n` +
+          `  const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);\n\n` +
+          `  const handleStatusChange = async () => {\n` +
+          `    if (!selectedCourierId) {\n` +
+          `      setMessage({ text: 'Veuillez assigner un livreur disponible.', isError: true });\n` +
+          `      return;\n` +
+          `    }\n` +
+          `    setLoading(true);\n` +
+          `    setMessage(null);\n` +
+          `    try {\n` +
+          `      await onStartDelivery(order.id, selectedCourierId);\n` +
+          `      setMessage({ text: 'Excellent ! La commande est passée \"En cours\" et assignée au coursier.', isError: false });\n` +
+          `    } catch (err: any) {\n` +
+          `      setMessage({ text: err.message || 'Une erreur est survenue lors de l\\'assignation.', isError: true });\n` +
+          `    } finally {\n` +
+          `      setLoading(false);\n` +
+          `    }\n` +
+          `  };\n\n` +
+          `  return (\n` +
+          `    <div className="bg-[#12131a] rounded-xl border border-orange-500/20 p-5 w-full max-w-lg mx-auto font-sans shadow-xl text-white">\n` +
+          `      <div className="flex justify-between items-start border-b border-white/5 pb-4 mb-4">\n` +
+          `        <div>\n` +
+          `          <span className="text-[10px] bg-orange-500/10 border border-orange-500/30 text-orange-400 font-mono px-2 py-0.5 rounded-full uppercase tracking-widest font-bold">\n` +
+          `            STATUT : {order.status}\n` +
+          `          </span>\n` +
+          `          <h4 className="text-base font-bold text-white mt-2 leading-tight">{order.customer_name}</h4>\n` +
+          `          <p className="text-xs text-slate-400 flex items-center gap-1 mt-1">\n` +
+          `            <MapPin className="h-3 w-3 text-orange-500" /> {order.delivery_address}\n` +
+          `          </p>\n` +
+          `        </div>\n` +
+          `        \n` +
+          `        <div className="text-right">\n` +
+          `          <p className="text-xs text-slate-500">Restaurant</p>\n` +
+          `          <p className="text-sm font-semibold text-orange-400">{order.restaurant_name}</p>\n` +
+          `          <p className="text-xs text-emerald-400 font-mono mt-1 font-bold">{order.price.toLocaleString('fr-FR')} FCFA</p>\n` +
+          `        </div>\n` +
+          `      </div>\n\n` +
+          `      <div className="space-y-4">\n` +
+          `        {order.status === 'En attente' ? (\n` +
+          `          <div className="space-y-3">\n` +
+          `            <div className="bg-orange-950/25 border border-orange-500/10 p-3 rounded-lg flex items-start gap-2.5">\n` +
+          `              <AlertCircle className="h-4 w-4 text-orange-400 shrink-0 mt-0.5" />\n` +
+          `              <p className="text-[11px] text-slate-300 leading-relaxed">\n` +
+          `                Cette commande est <strong>en attente</strong> de prise en charge. Sélectionnez un livreur actif pour initier la livraison à Abidjan.\n` +
+          `              </p>\n` +
+          `            </div>\n\n` +
+          `            <label className="text-[11px] font-mono text-slate-400 block uppercase font-bold tracking-wider">\n` +
+          `              Assigner un Coursier Partenaire :\n` +
+          `            </label>\n` +
+          `            <select\n` +
+          `              value={selectedCourierId}\n` +
+          `              onChange={(e) => setSelectedCourierId(e.target.value)}\n` +
+          `              className="w-full bg-black border border-white/10 rounded-lg p-2.5 text-xs text-white focus:border-orange-500/50 outline-none cursor-pointer"\n` +
+          `            >\n` +
+          `              <option value="">-- Choisissez un coursier disponible --</option>\n` +
+          `              {availableCouriers.map((courier) => (\n` +
+          `                <option key={courier.id} value={courier.id}>\n` +
+          `                  {courier.name} ({courier.phone})\n` +
+          `                </option>\n` +
+          `              ))}\n` +
+          `            </select>\n\n` +
+          `            <button\n` +
+          `              onClick={handleStatusChange}\n` +
+          `              disabled={loading || !selectedCourierId}\n` +
+          `              className="w-full py-2.5 bg-orange-600 hover:bg-orange-500 text-black font-extrabold uppercase rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs disabled:bg-neutral-800 disabled:text-neutral-500"\n` +
+          `            >\n` +
+          `              {loading ? (\n` +
+          `                <Clock className="h-4 w-4 animate-spin text-black" />\n` +
+          `              ) : (\n` +
+          `                <Truck className="h-4 w-4 text-black" />\n` +
+          `              )}\n` +
+          `              Passer la livraison \"En cours\"\n` +
+          `              <ArrowRight className="h-3.5 w-3.5 text-black" />\n` +
+          `            </button>\n` +
+          `          </div>\n` +
+          `        ) : (\n` +
+          `          <div className="space-y-3">\n` +
+          `            <div className="bg-emerald-950/25 border border-emerald-500/20 p-4 rounded-lg flex items-center gap-3 text-emerald-400">\n` +
+          `              <CheckCircle className="h-5 w-5 shrink-0" />\n` +
+          `              <div className="text-xs">\n` +
+          `                <p className="font-bold uppercase tracking-wider">Livraison en cours</p>\n` +
+          `                <p className="text-slate-300 mt-1">Le statut a été mis à jour à \"En cours\". Le livreur se rend au restaurant.</p>\n` +
+          `              </div>\n` +
+          `            </div>\n` +
+          `          </div>\n` +
+          `        )}\n\n` +
+          `        {message && (\n` +
+          `          <div className={\`p-3 rounded-lg text-xs leading-relaxed text-center font-mono \${` +
+          `            message.isError \n` +
+          `              ? 'bg-rose-950/35 border border-rose-500/20 text-rose-300' \n` +
+          `              : 'bg-emerald-950/35 border border-emerald-500/20 text-emerald-300'\n` +
+          `          }\`}>\n` +
+          `            {message.text}\n` +
+          `          </div>\n` +
+          `        )}\n` +
+          `      </div>\n` +
+          `    </div>\n` +
+          `  );\n` +
+          `}\n`;
+
+        fallbackData.api = `import { createClient } from '@supabase/supabase-js';\n\n` +
+          `// Configuration du client Supabase\n` +
+          `const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project.supabase.co';\n` +
+          `const supabaseKey = process.env.SUPABASE_ANON_KEY || 'your-key';\n` +
+          `const supabase = createClient(supabaseUrl, supabaseKey);\n\n` +
+          `/**\n` +
+          ` * Récupère les commandes Resto-Livr\n` +
+          ` */\n` +
+          `export async function fetchOrdersAndDeliveries() {\n` +
+          `  try {\n` +
+          `    const { data, error } = await supabase\n` +
+          `      .from('orders')\n` +
+          `      .select('*, couriers(*)')\n` +
+          `      .order('created_at', { ascending: false });\n` +
+          `    if (error) throw error;\n` +
+          `    return { data, error: null };\n` +
+          `  } catch (error: any) {\n` +
+          `    console.error('Erreur commandes:', error.message || error);\n` +
+          `    return { data: null, error: error.message || error };\n` +
+          `  }\n` +
+          `}\n\n` +
+          `/**\n` +
+          ` * Filtre les livreurs disponibles\n` +
+          ` */\n` +
+          `export async function fetchAvailableCouriers() {\n` +
+          `  try {\n` +
+          `    const { data, error } = await supabase\n` +
+          `      .from('couriers')\n` +
+          `      .select('*')\n` +
+          `      .eq('status', 'Disponible');\n` +
+          `    if (error) throw error;\n` +
+          `    return { data, error: null };\n` +
+          `  } catch (error: any) {\n` +
+          `    console.error('Erreur livreurs:', error.message || error);\n` +
+          `    return { data: null, error: error.message || error };\n` +
+          `  }\n` +
+          `}\n\n` +
+          `/**\n` +
+          ` * Met à jour le statut d'une commande à 'En cours'\n` +
+          ` */\n` +
+          `export async function startOrderDelivery(orderId: string, courierId: string) {\n` +
+          `  try {\n` +
+          `    const { data: orderData, error: orderError } = await supabase\n` +
+          `      .from('orders')\n` +
+          `      .update({ status: 'En cours', courier_id: courierId })\n` +
+          `      .eq('id', orderId)\n` +
+          `      .select();\n\n` +
+          `    if (orderError) throw orderError;\n\n` +
+          `    // Marquer également le coursier comme occupé\n` +
+          `    const { error: courierError } = await supabase\n` +
+          `      .from('couriers')\n` +
+          `      .update({ status: 'En livraison' })\n` +
+          `      .eq('id', courierId);\n\n` +
+          `    if (courierError) throw courierError;\n\n` +
+          `    return { success: true, order: orderData, error: null };\n` +
+          `  } catch (error: any) {\n` +
+          `    console.error('Erreur assignation:', error.message || error);\n` +
+          `    return { success: false, order: null, error: error.message || error };\n` +
+          `  }\n` +
+          `}\n`;
+      } else if (isEcommerce) {
+        fallbackData.sql = `-- =========================================================\n` +
+          `-- SCHÉMA SQL - E-COMMERCE & SYNCHRO INVENTAIRE (KIRA)\n` +
+          `-- =========================================================\n\n` +
+          `CREATE TABLE public.products (\n` +
+          `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
+          `    title TEXT NOT NULL,\n` +
+          `    sku TEXT UNIQUE NOT NULL,\n` +
+          `    quantity INT NOT NULL DEFAULT 0 CHECK (quantity >= 0),\n` +
+          `    price NUMERIC NOT NULL DEFAULT 0 CHECK (price >= 0),\n` +
+          `    category TEXT,\n` +
+          `    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
+          `);\n\n` +
+          `CREATE TABLE public.sales_channels (\n` +
+          `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
+          `    name TEXT NOT NULL, -- e.g. 'Boutique Lomé Central', 'E-shop'\n` +
+          `    location TEXT\n` +
+          `);\n\n` +
+          `CREATE TABLE public.stock_movements (\n` +
+          `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
+          `    product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,\n` +
+          `    channel_id UUID REFERENCES public.sales_channels(id),\n` +
+          `    quantity_changed INT NOT NULL,\n` +
+          `    type TEXT NOT NULL CHECK (type IN ('Sale', 'Restock', 'Transfer')),\n` +
+          `    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
+          `);\n`;
+
+        fallbackData.ui = `import React, { useState } from 'react';\n` +
+          `import { Package, ShieldAlert, Check, RefreshCcw, ShoppingBag } from 'lucide-react';\n\n` +
+          `export default function InventorySync({ product, channels, onSyncInventory }) {\n` +
+          `  const [qty, setQty] = useState(product.quantity);\n` +
+          `  const [loading, setLoading] = useState(false);\n\n` +
+          `  const executeSync = async () => {\n` +
+          `    setLoading(true);\n` +
+          `    try {\n` +
+          `      await onSyncInventory(product.id, qty);\n` +
+          `    } catch (e) { \n` +
+          `      console.error(e);\n` +
+          `    } finally {\n` +
+          `      setLoading(false);\n` +
+          `    }\n` +
+          `  };\n\n` +
+          `  return (\n` +
+          `    <div className="p-5 bg-[#0e1017] rounded-xl border border-white/5 text-white max-w-sm font-sans">\n` +
+          `      <div className="flex items-center gap-2 mb-3">\n` +
+          `        <Package className="h-5 w-5 text-cyan-400" />\n` +
+          `        <h4 className="font-bold text-sm tracking-wide">{product.title}</h4>\n` +
+          `      </div>\n` +
+          `      <div className="text-xs text-slate-400 mb-4">SKU: {product.sku} | Catégorie: {product.category}</div>\n` +
+          `      <div className="space-y-3">\n` +
+          `        <label className="text-[11px] uppercase tracking-wider text-slate-400">Ajuster la quantité physique réelle :</label>\n` +
+          `        <input type="number" value={qty} onChange={(e) => setQty(parseInt(e.target.value) || 0)} className="w-full bg-black border border-white/10 rounded-lg p-2 text-xs text-white" />\n` +
+          `        <button onClick={executeSync} disabled={loading} className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 font-bold rounded-lg text-black text-xs">\n` +
+          `          Synchroniser les stocks\n` +
+          `        </button>\n` +
+          `      </div>\n` +
+          `    </div>\n` +
+          `  );\n` +
+          `}\n`;
+
+        fallbackData.api = `import { createClient } from '@supabase/supabase-js';\n\n` +
+          `const supabase = createClient(process.env.SUPABASE_URL || '', process.env.SUPABASE_ANON_KEY || '');\n\n` +
+          `export async function updateProductStock(productId: string, newQty: number) {\n` +
+          `  return await supabase.from('products').update({ quantity: newQty, updated_at: new Date() }).eq('id', productId).select();\n` +
+          `}\n`;
+      } else if (isCrm) {
+        fallbackData.sql = `-- =========================================================\n` +
+          `-- SCHÉMA SQL - AUTOMATISATION PIPELINE LEAD CRM\n` +
+          `-- =========================================================\n\n` +
+          `CREATE TABLE public.crm_leads (\n` +
+          `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
+          `    contact_name TEXT NOT NULL,\n` +
+          `    company_name TEXT,\n` +
+          `    budget NUMERIC DEFAULT 0,\n` +
+          `    stage TEXT DEFAULT 'Nouveau' CHECK (stage IN ('Nouveau', 'Qualifié', 'Proposition', 'Gagné', 'Perdu')),\n` +
+          `    notes TEXT,\n` +
+          `    assigned_to TEXT DEFAULT 'Unassigned',\n` +
+          `    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
+          `);\n`;
+
+        fallbackData.ui = `import React, { useState } from 'react';\n` +
+          `import { User, ClipboardList, TrendingUp } from 'lucide-react';\n\n` +
+          `export default function LeadStageControl({ lead, onUpdateStage }) {\n` +
+          `  return (\n` +
+          `    <div className="p-4 bg-[#0a0f0d] border border-white/10 rounded-xl max-w-sm text-xs font-sans text-white">\n` +
+          `      <h4 className="font-bold text-sm mb-1">{lead.contact_name} ({lead.company_name})</h4>\n` +
+          `      <div className="font-mono text-emerald-400 font-bold mb-4">{lead.budget.toLocaleString()} FCFA</div>\n` +
+          `      <select onChange={(e) => onUpdateStage(lead.id, e.target.value)} value={lead.stage} className="w-full bg-black border border-white/10 p-2 rounded text-white text-xs cursor-pointer">\n` +
+          `        <option value="Nouveau">Nouveau</option>\n` +
+          `        <option value="Qualifié">Qualifié</option>\n` +
+          `        <option value="Proposition">Proposition</option>\n` +
+          `        <option value="Gagné">Gagné</option>\n` +
+          `      </select>\n` +
+          `    </div>\n` +
+          `  );\n` +
+          `}\n`;
+
+        fallbackData.api = `import { createClient } from '@supabase/supabase-js';\n\n` +
+          `const supabase = createClient(process.env.SUPABASE_URL || '', process.env.SUPABASE_ANON_KEY || '');\n\n` +
+          `export async function updateLeadStage(leadId: string, nextStage: string) {\n` +
+          `  return await supabase.from('crm_leads').update({ stage: nextStage }).eq('id', leadId).select();\n` +
+          `}\n`;
+      } else {
+        // Generic customized scaffold based on words in their custom prompt
+        const words = prompt.match(/\b\w{4,12}\b/g) || ["tasks", "items"];
+        const sanitizedWords = Array.from(new Set(words.map(w => w.toLowerCase()).filter(w => !['avec', 'dans', 'pour', 'tout', 'base', 'donnees', 'comme', 'plus', 'faire', 'creation', 'modele', 'table', 'code', 'react', 'tailwind'].includes(w))));
+        const primaryEntity = sanitizedWords[0] || 'records';
+        const secondaryEntity = sanitizedWords[1] || 'categories';
+
+        fallbackData.sql = `-- =========================================================\n` +
+          `-- SCHÉMA SQL AUTO-ÉCHAFAUDÉ (PROJET MULTI-TABLES)\n` +
+          `-- =========================================================\n\n` +
+          `CREATE TABLE public.${primaryEntity} (\n` +
+          `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
+          `    title TEXT NOT NULL,\n` +
+          `    description TEXT,\n` +
+          `    status TEXT DEFAULT 'Actif' CHECK (status IN ('Actif', 'Inactif', 'Archivé')),\n` +
+          `    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
+          `);\n\n` +
+          `CREATE TABLE public.${secondaryEntity} (\n` +
+          `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
+          `    name TEXT NOT NULL UNIQUE,\n` +
+          `    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
+          `);\n`;
+
+        fallbackData.ui = `import React, { useState } from 'react';\n` +
+          `import { Box, Settings, Layers, Star } from 'lucide-react';\n\n` +
+          `export default function CustomAppControl({ record, onUpdateStatus }) {\n` +
+          `  const [status, setStatus] = useState(record.status);\n` +
+          `  return (\n` +
+          `    <div className="p-4 bg-zinc-950 border border-white/5 rounded-xl max-w-sm text-xs font-sans text-white">\n` +
+          `      <div className="flex items-center gap-1.5 mb-2">\n` +
+          `        <Box className="text-orange-400 h-4 w-4" />\n` +
+          `        <h4 className="font-bold text-sm uppercase">{record.title}</h4>\n` +
+          `      </div>\n` +
+          `      <p className="text-slate-400 mb-4">{record.description || 'Pas de description supplémentaire'}</p>\n` +
+          `      <button onClick={() => onUpdateStatus(record.id, 'Archivé')} className="w-full py-2 bg-neutral-900 border border-white/10 text-white rounded text-xs hover:bg-neutral-800 transition-colors">\n` +
+          `        Archiver l'enregistrement\n` +
+          `      </button>\n` +
+          `    </div>\n` +
+          `  );\n` +
+          `}\n`;
+
+        fallbackData.api = `import { createClient } from '@supabase/supabase-js';\n\n` +
+          `const supabase = createClient(process.env.SUPABASE_URL || '', process.env.SUPABASE_ANON_KEY || '');\n\n` +
+          `export async function updateRecordStatus(recordId: string, nextStatus: string) {\n` +
+          `  return await supabase.from('${primaryEntity}').update({ status: nextStatus }).eq('id', recordId).select();\n` +
+          `}\n`;
+      }
+
+      res.status(200).json({ success: true, data: fallbackData });
+    }
+  });
+
   // 8. CRM Leads CRUD with Supabase & local memory fallback
   app.get("/api/leads", async (req: Request, res: Response) => {
     const supabase = getSupabase();

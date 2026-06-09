@@ -15,7 +15,8 @@ import {
   MessageSquare,
   Bot,
   Fingerprint,
-  Sliders
+  Sliders,
+  Cpu
 } from "lucide-react";
 
 import BrandHub from "./components/BrandHub";
@@ -30,6 +31,7 @@ import ManyChatTunneler from "./components/ManyChatTunneler";
 import BriefAgent from "./components/BriefAgent";
 import CommercialAgent from "./components/CommercialAgent";
 import KanbanBoard from "./components/KanbanBoard";
+import ProjectGenerator from "./components/ProjectGenerator";
 import Toast, { ToastMessage } from "./components/Toast";
 import { SavedItem, ModuleType, BrandIdentity } from "./types";
 
@@ -223,6 +225,7 @@ export default function App() {
     { id: 'brief', label: 'Brief IA & Devis', icon: Bot, badge: 'Agent' },
     { id: 'pipeline', label: 'Pipeline CRM ✦', icon: Sliders, badge: '/pipeline' },
     { id: 'commercial-agent', label: 'Agent Commercial ✦', icon: Bot, badge: 'DC' },
+    { id: 'generator', label: 'Générateur de Projet ✦', icon: Cpu, badge: 'Bâtisseur' },
     { id: 'saved', label: 'Bibliothèque', icon: Heart, count: savedItems.length }
   ];
 
@@ -648,8 +651,8 @@ export default function App() {
                         <div className="h-10 w-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col items-center justify-center">
                           <Bot className="h-5 w-5 text-cyan-400 font-mono" />
                         </div>
-                        <h3 className="text-base font-bold font-display text-white group-hover:text-cyan-400 transition-colors">Cadrage Client & Devis Chiffré</h3>
-                        <p className="text-slate-400 text-xs leading-relaxed">
+                        <h3 className="text-base font-bold font-display text-white group-hover:text-cyan-400 transition-colors font-sans">Cadrage Client & Devis Chiffré</h3>
+                        <p className="text-slate-400 text-xs leading-relaxed font-sans">
                           Évaluez les besoins d'un prospect de manière ludique et conversationnelle. Générez en une seconde le PRD, le cahier des charges et un devis interactif 100% personnalisable.
                         </p>
                       </div>
@@ -658,6 +661,25 @@ export default function App() {
                         className="flex items-center gap-1.5 text-xs text-cyan-400 font-semibold hover:text-cyan-300 font-mono cursor-pointer transition-colors"
                       >
                         Lancer un cadrage client <ChevronRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Générateur de Projet */}
+                    <div className="bg-[#110e0b] border border-orange-500/25 hover:border-orange-500/50 p-6 rounded-2xl flex flex-col justify-between space-y-4 group transition-all shadow-md">
+                      <div className="space-y-2">
+                        <div className="h-10 w-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex flex-col items-center justify-center">
+                          <Cpu className="h-5 w-5 text-orange-400" />
+                        </div>
+                        <h3 className="text-base font-bold font-display text-white group-hover:text-orange-400 transition-colors uppercase tracking-tight">Générateur de Projet</h3>
+                        <p className="text-slate-400 text-xs leading-relaxed font-sans font-sans">
+                          Transforme un cahier des charges ou un brief Kanban en code prêt pour la production. Génère le schéma SQL Supabase, les composants UI React, et la logique d'API.
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => setActiveTab('generator')}
+                        className="flex items-center gap-1.5 text-xs text-orange-400 font-semibold hover:text-orange-300 font-mono cursor-pointer transition-colors"
+                      >
+                        Bâtir un projet NoCode/Tech <ChevronRight className="h-3.5 w-3.5" />
                       </button>
                     </div>
 
@@ -824,6 +846,7 @@ export default function App() {
               {activeTab === 'brief' && <BriefAgent onSave={handleSaveItem} />}
               {activeTab === 'pipeline' && <KanbanBoard onNavigateToTab={handleNavigateToTab} />}
               {activeTab === 'commercial-agent' && <CommercialAgent onSaveBrief={handleSaveItem} onNavigateToTab={handleNavigateToTab} />}
+              {activeTab === 'generator' && <ProjectGenerator onSave={handleSaveItem} />}
               {activeTab === 'saved' && (
                 <SavedLibrary 
                   items={savedItems} 
