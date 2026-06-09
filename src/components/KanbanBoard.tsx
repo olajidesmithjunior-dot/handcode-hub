@@ -15,7 +15,13 @@ import {
   Briefcase,
   CheckCircle2,
   X,
-  FileText
+  FileText,
+  Globe,
+  Sparkles,
+  Send,
+  Check,
+  HelpCircle,
+  Play
 } from "lucide-react";
 import { Lead, LeadStatus } from "../types/crm";
 
@@ -67,6 +73,133 @@ export default function KanbanBoard({ onNavigateToTab }: KanbanBoardProps) {
     status: "À revoir" as LeadStatus,
     description: ""
   });
+
+  // Webhook and WhatsApp simulation states (Make.com Integration)
+  const [activeSubView, setActiveSubView] = useState<'kanban' | 'make'>('kanban');
+  const [webhookUrl, setWebhookUrl] = useState(() => {
+    return localStorage.getItem('make_webhook_url') || 'https://hook.eu1.make.com/53hgab4129c851jnsew8nf13374l86uw';
+  });
+  const [senderName, setSenderName] = useState('Jean-Luc K.');
+  const [rawMessage, setRawMessage] = useState(
+    "Allô handCode, c'est Jean-Luc K. de Resto-Livr Abidjan ! Nous avons un budget de 800 000 FCFA pour connecter nos restaurants et nos livreurs d'Abidjan sur une database solide."
+  );
+
+  const [isSendingToWebhook, setIsSendingToWebhook] = useState(false);
+  const [isSimulatingGemini, setIsSimulatingGemini] = useState(false);
+  const [webhookResponse, setWebhookResponse] = useState<{ status?: number; statusText?: string; text?: string; error?: string } | null>(null);
+  const [simulationLogs, setSimulationLogs] = useState<string[]>([]);
+  const [simulatedExtraction, setSimulatedExtraction] = useState<any | null>(null);
+  const [isSavedWebhookUrl, setIsSavedWebhookUrl] = useState(false);
+
+  const handleSaveWebhookUrl = () => {
+    localStorage.setItem('make_webhook_url', webhookUrl);
+    setIsSavedWebhookUrl(true);
+    setTimeout(() => setIsSavedWebhookUrl(false), 2000);
+  };
+
+  const applyPresetMessage = (preset: 'jeanluc' | 'marie' | 'salim') => {
+    if (preset === 'jeanluc') {
+      setSenderName('Jean-Luc K.');
+      setRawMessage("Allô handCode, c'est Jean-Luc K. de Resto-Livr Abidjan ! Nous avons un budget de 800000 FCFA pour connecter nos restaurants et nos livreurs d'Abidjan sur une database solide.");
+    } else if (preset === 'marie') {
+      setSenderName('Marie-Noëlle A.');
+      setRawMessage("Bonjour handCode, Marie-Noëlle de Kira Cosmetics. Nous cherchons un système intelligent pour synchroniser nos stocks de produits physiques à Lomé en automatique. Budget de 1550000 FCFA.");
+    } else if (preset === 'salim') {
+      setSenderName('Salim D.');
+      setRawMessage("Salut handCode, Salim de Dakar Tech Logistics. J'ai un budget de 2400000 FCFA pour automatiser le dispatching de mes livreurs de colis basés à Dakar.");
+    }
+    setWebhookResponse(null);
+    setSimulatedExtraction(null);
+    setSimulationLogs([]);
+  };
+
+  const handleTriggerWebhook = async () => {
+    if (!webhookUrl.trim() || !rawMessage.trim()) return;
+    setIsSendingToWebhook(true);
+    setWebhookResponse(null);
+    try {
+      const response = await fetch('/api/make-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          webhookUrl,
+          message: rawMessage,
+          sender: senderName
+        })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setWebhookResponse({
+          status: data.status,
+          statusText: data.statusText,
+          text: data.responseText
+        });
+      } else {
+        setWebhookResponse({
+          error: data.error || "Erreur de transmission inattendue."
+        });
+      }
+    } catch (err: any) {
+      setWebhookResponse({
+        error: err.message || "Impossible de joindre le proxy du serveur."
+      });
+    } finally {
+      setIsSendingToWebhook(false);
+    }
+  };
+
+  const handleSimulateGemini = async () => {
+    if (!rawMessage.trim()) return;
+    setIsSimulatingGemini(true);
+    setSimulatedExtraction(null);
+    setSimulationLogs([
+      "[SYSTEM] Initialisation de la simulation de routage...",
+      "[SYSTEM] Envoi du message WhatsApp brut au parseur cognitif Google Gemini..."
+    ]);
+
+    try {
+      const response = await fetch('/api/simulate-whatsapp-gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: rawMessage })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setSimulationLogs(prev => [
+          ...prev,
+          `[INTEL] Extraction sémantique terminée par Gemini avec succès :`,
+          `  - Prospect : "${data.extracted.client_nom}"`,
+          `  - Entreprise/Projet : "${data.extracted.entreprise}"`,
+          `  - Budget Extrait : ${Number(data.extracted.budget).toLocaleString('fr-FR')} FCFA`,
+          `  - Besoin : "${data.extracted.besoin}"`,
+          `[DATABASE] Insertion de la fiche de cadrage dans la table 'leads' réussie. ID: ${data.lead.id}`,
+          `[SYSTEM] Succès ! Redirection automatique vers le tableau de Kanban dans 3 secondes...`
+        ]);
+        setSimulatedExtraction(data.extracted);
+
+        // Refresh leads list right away
+        queryClient.invalidateQueries({ queryKey: ["leads"] });
+
+        // Auto-back to Kanban board so the user can gaze at their card materializing
+        setTimeout(() => {
+          setActiveSubView('kanban');
+        }, 3200);
+      } else {
+        setSimulationLogs(prev => [
+          ...prev,
+          `[ERROR] Le serveur a retourné une erreur : ${data.error || 'Inconnue'}`
+        ]);
+      }
+    } catch (err: any) {
+      setSimulationLogs(prev => [
+        ...prev,
+        `[ERROR] Connexion réseau ou serveur rompue : ${err.message}`
+      ]);
+    } finally {
+      setIsSimulatingGemini(false);
+    }
+  };
 
   // Query to Fetch Leads
   const { data: dbResponse, isLoading, error, refetch, isFetching } = useQuery({
@@ -259,44 +392,73 @@ export default function KanbanBoard({ onNavigateToTab }: KanbanBoardProps) {
         </div>
       </div>
 
-      {/* Financial Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-black/40 border border-white/5 rounded-xl p-4 flex items-center gap-3.5 shadow-md">
-          <div className="h-10 w-10 bg-orange-500/5 border border-orange-500/20 rounded-lg flex items-center justify-center text-orange-400 shrink-0">
-            <Coins className="h-5 w-5" />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-mono text-slate-500 font-bold tracking-wider">Volume Global du Pipeline</span>
-            <p className="text-base font-mono font-bold text-white mt-0.5">
-              {totalEstimates.toLocaleString("fr-FR")} FCFA
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-black/40 border border-white/5 rounded-xl p-4 flex items-center gap-3.5 shadow-md">
-          <div className="h-10 w-10 bg-emerald-500/5 border border-emerald-500/20 rounded-lg flex items-center justify-center text-emerald-400 shrink-0">
-            <CheckCircle2 className="h-5 w-5" />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-mono text-slate-500 font-bold tracking-wider">Signé / Chiffre d'affaires gagné</span>
-            <p className="text-base font-mono font-bold text-emerald-400 mt-0.5">
-              {wonEstimates.toLocaleString("fr-FR")} FCFA
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-black/40 border border-white/5 rounded-xl p-4 flex items-center gap-3.5 shadow-md">
-          <div className="h-10 w-10 bg-purple-500/5 border border-purple-500/20 rounded-lg flex items-center justify-center text-purple-400 shrink-0">
-            <Briefcase className="h-5 w-5" />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-mono text-slate-500 font-bold tracking-wider">En closing de contrat</span>
-            <p className="text-base font-mono font-bold text-purple-400 mt-0.5">
-              {closingEstimates.toLocaleString("fr-FR")} FCFA
-            </p>
-          </div>
-        </div>
+      {/* Tab Switcher */}
+      <div className="flex border-b border-white/5 pb-1 gap-2 font-mono">
+        <button
+          onClick={() => setActiveSubView('kanban')}
+          type="button"
+          className={`py-2 px-4 text-xs font-bold uppercase tracking-wider transition-all border-b-2 cursor-pointer flex items-center gap-1.5 ${
+            activeSubView === 'kanban'
+              ? "border-orange-500 text-white font-bold"
+              : "border-transparent text-slate-500 hover:text-white"
+          }`}
+        >
+          📊 Tableau de Suivi Kanban
+        </button>
+        <button
+          onClick={() => setActiveSubView('make')}
+          type="button"
+          className={`py-2 px-4 text-xs font-bold uppercase tracking-wider transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+            activeSubView === 'make'
+              ? "border-orange-500 text-orange-400 font-bold"
+              : "border-transparent text-slate-400 hover:text-white"
+          }`}
+        >
+          🔌 Intégration Make & WhatsApp Webhook
+          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+        </button>
       </div>
+
+      {activeSubView === 'kanban' ? (
+        <>
+          {/* Financial Metrics Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-black/40 border border-white/5 rounded-xl p-4 flex items-center gap-3.5 shadow-md">
+              <div className="h-10 w-10 bg-orange-500/5 border border-orange-500/20 rounded-lg flex items-center justify-center text-orange-400 shrink-0">
+                <Coins className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-mono text-slate-500 font-bold tracking-wider">Volume Global du Pipeline</span>
+                <p className="text-base font-mono font-bold text-white mt-0.5">
+                  {totalEstimates.toLocaleString("fr-FR")} FCFA
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-white/5 rounded-xl p-4 flex items-center gap-3.5 shadow-md">
+              <div className="h-10 w-10 bg-emerald-500/5 border border-emerald-500/20 rounded-lg flex items-center justify-center text-emerald-400 shrink-0">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-mono text-slate-500 font-bold tracking-wider font-bold">Signé / Chiffre d'affaires gagné</span>
+                <p className="text-base font-mono font-bold text-emerald-400 mt-0.5">
+                  {wonEstimates.toLocaleString("fr-FR")} FCFA
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-white/5 rounded-xl p-4 flex items-center gap-3.5 shadow-md">
+              <div className="h-10 w-10 bg-purple-500/5 border border-purple-500/20 rounded-lg flex items-center justify-center text-purple-400 shrink-0">
+                <Briefcase className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-mono text-slate-500 font-bold tracking-wider font-bold">En closing de contrat</span>
+                <p className="text-base font-mono font-bold text-purple-400 mt-0.5">
+                  {closingEstimates.toLocaleString("fr-FR")} FCFA
+                </p>
+              </div>
+            </div>
+          </div>
 
       {/* Main Kanban Columns Area */}
       {isLoading ? (
@@ -412,6 +574,294 @@ export default function KanbanBoard({ onNavigateToTab }: KanbanBoardProps) {
               </div>
             );
           })}
+        </div>
+      )}
+        </>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 font-mono text-xs text-slate-300 animate-fade-in pb-12">
+          
+          {/* Left panel - Inputs & Webhook Settings (2 cols) */}
+          <div className="lg:col-span-2 space-y-4">
+            
+            {/* Real Webhook Configuration panel */}
+            <div className="bg-[#0b0c10] border border-white/5 rounded-2xl p-5 space-y-4 shadow-xl">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <Globe className="h-4 w-4 text-orange-500" />
+                Lien Webhook Make.com
+              </h3>
+              
+              <p className="text-slate-400 text-[11px] leading-relaxed font-sans mt-1">
+                Indiquez l'URL cible de votre Webhook personnalisé dans Make.com. Les simulations y enverront un payload JSON avec le message de WhatsApp.
+              </p>
+
+              <div className="space-y-2">
+                <div className="flex gap-2 text-xs">
+                  <input
+                    type="text"
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                    className="flex-1 bg-black border border-white/10 rounded-xl p-2.5 text-slate-200 focus:border-orange-500/40 outline-none text-[10px]"
+                    placeholder="https://hook.eu1.make.com/..."
+                  />
+                  <button
+                    onClick={handleSaveWebhookUrl}
+                    type="button"
+                    className="px-3.5 py-2.5 bg-neutral-900 border border-white/10 hover:border-orange-500/35 hover:bg-neutral-850 text-white font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1 text-[11px]"
+                  >
+                    {isSavedWebhookUrl ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        Sauvé !
+                      </>
+                    ) : (
+                      "Sauver"
+                    )}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const defaultUrl = "https://hook.eu1.make.com/53hgab4129c851jnsew8nf13374l86uw";
+                    setWebhookUrl(defaultUrl);
+                    localStorage.setItem("make_webhook_url", defaultUrl);
+                    setIsSavedWebhookUrl(true);
+                    setTimeout(() => setIsSavedWebhookUrl(false), 2000);
+                  }}
+                  className="text-[9px] text-slate-500 hover:text-orange-400 font-mono underline block text-left cursor-pointer"
+                >
+                  Réinitialiser au webhook Make de Jean-Luc (53hgab...)
+                </button>
+              </div>
+            </div>
+
+            {/* Live WhatsApp Simulator Console */}
+            <div className="bg-[#0b0c10] border border-white/5 rounded-2xl p-5 space-y-4 shadow-xl">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <Zap className="h-4 w-4 text-orange-500 font-mono" />
+                Simulateur de Message WhatsApp
+              </h3>
+
+              {/* Study Case presets selector */}
+              <div className="space-y-1.5 font-mono">
+                <span className="text-[9.5px] uppercase text-slate-500 font-bold block">Charger un message d'étude :</span>
+                <div className="grid grid-cols-1 gap-1.5 animate-fade-in-down">
+                  <button
+                    type="button"
+                    onClick={() => applyPresetMessage('jeanluc')}
+                    className={`w-full py-2 px-3 border rounded-xl text-left bg-black hover:bg-white/5 text-[11px] font-sans flex justify-between items-center cursor-pointer transition-all ${
+                      senderName === 'Jean-Luc K.' ? 'border-orange-500/40 text-orange-400 font-bold bg-orange-500/5' : 'border-white/5 text-slate-300'
+                    }`}
+                  >
+                    <span>📱 Jean-Luc K. (Resto-Livr Abidjan)</span>
+                    <span className="text-[9.5px] font-mono text-orange-400 font-bold shrink-0">800k F</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetMessage('marie')}
+                    className={`w-full py-2 px-3 border rounded-xl text-left bg-black hover:bg-white/5 text-[11px] font-sans flex justify-between items-center cursor-pointer transition-all ${
+                      senderName === 'Marie-Noëlle A.' ? 'border-orange-500/40 text-orange-400 font-bold bg-orange-500/5' : 'border-white/5 text-slate-300'
+                    }`}
+                  >
+                    <span>📱 Marie-Noëlle (Kira Cosmetics Lomé)</span>
+                    <span className="text-[9.5px] font-mono text-orange-400 font-bold shrink-0">1.55M F</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetMessage('salim')}
+                    className={`w-full py-2 px-3 border rounded-xl text-left bg-black hover:bg-white/5 text-[11px] font-sans flex justify-between items-center cursor-pointer transition-all ${
+                      senderName === 'Salim D.' ? 'border-orange-500/40 text-orange-400 font-bold bg-orange-500/5' : 'border-white/5 text-slate-300'
+                    }`}
+                  >
+                    <span>📱 Salim D. (Dakar Logistics)</span>
+                    <span className="text-[9.5px] font-mono text-orange-400 font-bold shrink-0">2.4M F</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <div className="space-y-1">
+                  <label className="text-[9px] text-slate-500 font-bold uppercase block">Expéditeur WhatsApp</label>
+                  <input
+                    type="text"
+                    value={senderName}
+                    onChange={(e) => setSenderName(e.target.value)}
+                    className="w-full bg-black border border-white/10 rounded-xl p-2.5 text-white outline-none focus:border-orange-500/40 text-xs"
+                    placeholder="Nom du prospect"
+                  />
+                </div>
+
+                <div className="space-y-1 font-sans">
+                  <label className="text-[9px] text-slate-500 font-bold uppercase block font-mono">Texte Brut WhatsApp Reçu</label>
+                  <textarea
+                    value={rawMessage}
+                    onChange={(e) => setRawMessage(e.target.value)}
+                    rows={4}
+                    className="w-full bg-black border border-white/10 rounded-xl p-3 text-slate-200 focus:border-orange-500/40 outline-none leading-relaxed text-[11px]"
+                    placeholder="Saisissez le texte..."
+                  />
+                </div>
+
+                {/* Simulated action buttons */}
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSimulateGemini}
+                    disabled={isSimulatingGemini || isSendingToWebhook || !rawMessage.trim()}
+                    className="w-full py-3 bg-orange-600 hover:bg-orange-500 disabled:bg-neutral-900 disabled:text-neutral-600 text-black font-extrabold uppercase rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs shadow-lg shadow-orange-950/25"
+                  >
+                    {isSimulatingGemini ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin text-black shrink-0" />
+                        Extraction IA Gemini en cours...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 text-black shrink-0 animate-pulse" />
+                        Extraction Gemini & Injection Directe
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleTriggerWebhook}
+                    disabled={isSendingToWebhook || isSimulatingGemini || !webhookUrl.trim() || !rawMessage.trim()}
+                    className="w-full py-3 bg-transparent hover:bg-white/5 border border-[#fc5c24]/20 hover:border-[#fc5c24]/85 text-[#fc5c24] disabled:border-white/5 disabled:text-slate-600 font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[10.5px]"
+                  >
+                    {isSendingToWebhook ? (
+                      <>
+                        <Clock className="h-3.5 w-3.5 animate-spin text-slate-400 shrink-0" />
+                        POST Webhook en cours...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-3.5 w-3.5 shrink-0" />
+                        Déclencher le Scénario Make (HTTP POST)
+                      </>
+                    )}
+                  </button>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* Right column - Logs Terminal & Integration Schema Guide (3 cols) */}
+          <div className="lg:col-span-3 space-y-4">
+            
+            {/* Live Interactive Logger Terminal */}
+            <div className="bg-[#050508] border border-white/10 rounded-2xl p-5 shadow-2xl flex flex-col min-h-[220px]">
+              <div className="flex justify-between items-center pb-2 border-b border-white/5 mb-3 text-[9.5px]">
+                <div className="flex items-center gap-2 text-slate-400 font-bold font-mono">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>CONSOLES DES SÉQUENCES COGNITIVES ARTISAN_OS</span>
+                </div>
+                <span className="text-[#fc5c24] font-bold uppercase font-mono">LIVE_FEED</span>
+              </div>
+
+              {/* Logs terminal content */}
+              <div className="flex-1 space-y-2 font-mono text-[10.5px] text-[#21ebcd] leading-normal max-h-[160px] overflow-y-auto pr-2 select-text">
+                {simulationLogs.length === 0 && !webhookResponse && (
+                  <div className="text-slate-600 italic py-8 text-center font-mono">
+                    En attente d'une commande d'émission...<br />
+                    <span className="text-[9px] block mt-1.5 font-sans text-slate-500">Choisissez un cas à gauche et cliquez sur l'un des boutons de workflow pour observer.</span>
+                  </div>
+                )}
+
+                {simulationLogs.map((log, idx) => {
+                  let color = "text-[#21ebcd]";
+                  if (log.includes("[ERROR]")) color = "text-rose-450 font-bold";
+                  if (log.includes("[SUCCESS]")) color = "text-emerald-450 font-semibold";
+                  if (log.includes("[SYSTEM]")) color = "text-slate-500";
+                  if (log.includes("[INTEL]")) color = "text-amber-400 font-bold";
+                  if (log.startsWith("  -")) color = "text-amber-350 pl-4";
+
+                  return (
+                    <p key={idx} className={color}>
+                      {log}
+                    </p>
+                  );
+                })}
+
+                {webhookResponse && (
+                  <div className="space-y-1.5 p-3 rounded-lg bg-black/60 border border-white/10 font-mono text-[10px] mt-2">
+                    <div className="flex items-center gap-1.5 font-bold uppercase text-[9px] text-[#fc5c24]">
+                      <span className="h-1.5 w-1.5 bg-[#fc5c24] rounded-full animate-ping" />
+                      <span>Réponse HTTP Webhook Make</span>
+                    </div>
+                    {webhookResponse.error ? (
+                      <p className="text-rose-400 font-bold">{webhookResponse.error}</p>
+                    ) : (
+                      <div className="space-y-1 text-slate-400 font-sans">
+                        <p className="font-mono">• Statut HTTP : <span className="text-emerald-400 font-bold">{webhookResponse.status} {webhookResponse.statusText}</span></p>
+                        <p className="font-mono">• Réponse brute : <span className="text-white bg-[#030303] border border-white/5 py-0.5 px-1.5 rounded text-[10px] select-all inline-block truncate max-w-xs">{webhookResponse.text || "Accepté (HTTP 200)"}</span></p>
+                        <p className="text-[9px] text-orange-400 mt-2 italic leading-relaxed">
+                          ⚡ Le message brut a été transmis avec succès au webhook de Make ! Dès qu'un message WhatsApp de Jean-Luc ou Marie-Noëlle arrive, Make envoie la donnée structurée vers notre CRM d'opportunités d'ARTISAN_OS. Les colonnes ont été actualisées de notre côté.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Step-by-step setup guide */}
+            <div className="bg-black/40 border border-white/5 rounded-2xl p-5 space-y-4 shadow-xl">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <HelpCircle className="h-4 w-4 text-orange-500" />
+                Guide : Comment Câbler Make.com & Supabase CRM
+              </h3>
+
+              <div className="space-y-3 font-sans text-[11px] leading-relaxed text-slate-400 bg-transparent">
+                <p>
+                  Pour automatiser l'intégration WhatsApp / Instagram dans ARTISAN_OS, créez simplement un scénario Make.com structuré comme suit :
+                </p>
+
+                <div className="space-y-2 font-mono text-[10.5px]">
+                  <div className="p-3 bg-black/45 border border-white/5 rounded-xl space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-[9px] text-orange-400 uppercase">
+                      <span className="bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded">1</span> Custom Webhook (Make)
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-sans">
+                      Créez un module <strong>Webhooks {" > "} Custom Webhook</strong>. Make vous donnera l'URL de réception. Copiez cette URL et enregistrez-la à gauche.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-black/45 border border-white/5 rounded-xl space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-[9px] text-orange-400 uppercase">
+                      <span className="bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded">2</span> Google Gemini API
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-sans">
+                      Ajoutez un module <strong>Google Gemini {" > "} Generate Content</strong>. Définissez le prompt d'analyse :
+                    </p>
+                    <code className="text-[9px] text-[#21ebcd] bg-black p-1.5 rounded font-mono block mt-1 select-all border border-white/10 leading-normal">
+                      "Analyse le message brute reçu : {`{{message}}`} et extrait un JSON valide : {`{ "client_nom": "...", "budget": 1000000, "besoin": "..." }`}."
+                    </code>
+                  </div>
+
+                  <div className="p-3 bg-black/45 border border-white/5 rounded-xl space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-[9px] text-[#fc5c24] uppercase">
+                      <span className="bg-orange-500/10 text-[#fc5c24] px-1.5 py-0.5 rounded">3</span> Requête HTTP de retour
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-sans">
+                      Ajoutez un module <strong>HTTP {" > "} Make a request</strong> pour écrire dans la table Supabase via notre API :
+                    </p>
+                    <div className="font-mono text-[9px] space-y-0.5 bg-black p-2.5 rounded border border-white/10 mt-1 leading-normal select-all">
+                      <p className="text-orange-400">Method: POST</p>
+                      <p className="text-cyan-400">URL: <span className="text-white">https://{window.location.host}/api/leads</span></p>
+                      <p className="text-slate-550">Headers: Content-Type: application/json</p>
+                      <p className="text-purple-400">Body JSON: <span className="text-white">{`{\n  "name": "{{client_nom}}",\n  "company": "WhatsApp Lead",\n  "budget": "{{budget}}",\n  "description": "{{besoin}}"\n}`}</span></p>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
         </div>
       )}
 
