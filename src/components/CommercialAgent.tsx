@@ -238,7 +238,7 @@ export default function CommercialAgent({ onSaveBrief, onNavigateToTab }: Commer
     }
   };
 
-  const saveToCRM = () => {
+  const saveToCRM = async () => {
     const isQual = form.budgetFCFA >= 1000000;
     // Map FCFA to EUR for the CRM (approximate rate 1 EUR = 656 FCFA)
     const subtotalInEur = Math.round(form.budgetFCFA / 655.957);
@@ -280,8 +280,28 @@ export default function CommercialAgent({ onSaveBrief, onNavigateToTab }: Commer
       mockupBriefData
     );
 
+    // Persist real-time lead inside public.leads table (Supabase or memory)
+    try {
+      await fetch("/api/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: form.name,
+          company: form.company || "Particulier",
+          budget: form.budgetFCFA,
+          status: "À revoir",
+          description: form.problem
+        })
+      });
+    } catch (e) {
+      console.warn("Failed to push lead to live Supabase CRM database:", e);
+    }
+
     setIsSavedInHub(true);
   };
+
 
   return (
     <div className="space-y-8 animate-fade-in text-xs max-w-5xl mx-auto">

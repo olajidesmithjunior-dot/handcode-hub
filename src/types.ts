@@ -1,4 +1,4 @@
-export type ModuleType = 'social' | 'code' | 'copy' | 'design' | 'manychat' | 'brief' | 'saved' | 'commercial-agent';
+export type ModuleType = 'social' | 'code' | 'copy' | 'design' | 'manychat' | 'brief' | 'saved' | 'commercial-agent' | 'pipeline';
 
 export interface SocialPost {
   id: string;

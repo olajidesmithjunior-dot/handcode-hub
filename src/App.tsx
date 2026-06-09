@@ -29,6 +29,7 @@ import SavedLibrary from "./components/SavedLibrary";
 import ManyChatTunneler from "./components/ManyChatTunneler";
 import BriefAgent from "./components/BriefAgent";
 import CommercialAgent from "./components/CommercialAgent";
+import KanbanBoard from "./components/KanbanBoard";
 import Toast, { ToastMessage } from "./components/Toast";
 import { SavedItem, ModuleType, BrandIdentity } from "./types";
 
@@ -220,6 +221,7 @@ export default function App() {
     { id: 'design', label: 'Moodboard & SVG', icon: Palette, badge: 'Design' },
     { id: 'manychat', label: 'Auto-Tunnels IA', icon: MessageSquare, badge: 'ManyChat' },
     { id: 'brief', label: 'Brief IA & Devis', icon: Bot, badge: 'Agent' },
+    { id: 'pipeline', label: 'Pipeline CRM ✦', icon: Sliders, badge: '/pipeline' },
     { id: 'commercial-agent', label: 'Agent Commercial ✦', icon: Bot, badge: 'DC' },
     { id: 'saved', label: 'Bibliothèque', icon: Heart, count: savedItems.length }
   ];
@@ -446,18 +448,7 @@ export default function App() {
               </div>
 
               {dashboardView === 'crm' ? (
-                <BriefCRM 
-                  items={savedItems} 
-                  onUpdateStatus={handleUpdateItemStatus} 
-                  onDelete={handleDeleteItem} 
-                  onNavigateToTab={(t) => {
-                    if (t === 'saved') {
-                      setActiveTab('saved');
-                    } else {
-                      setActiveTab(t);
-                    }
-                  }} 
-                />
+                <KanbanBoard onNavigateToTab={handleNavigateToTab} />
               ) : (
                 <>
                   <div className="space-y-6">
@@ -831,6 +822,7 @@ export default function App() {
               {activeTab === 'design' && <DesignAssets onSave={handleSaveItem} />}
               {activeTab === 'manychat' && <ManyChatTunneler onSave={handleSaveItem} />}
               {activeTab === 'brief' && <BriefAgent onSave={handleSaveItem} />}
+              {activeTab === 'pipeline' && <KanbanBoard onNavigateToTab={handleNavigateToTab} />}
               {activeTab === 'commercial-agent' && <CommercialAgent onSaveBrief={handleSaveItem} onNavigateToTab={handleNavigateToTab} />}
               {activeTab === 'saved' && (
                 <SavedLibrary 

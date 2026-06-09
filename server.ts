@@ -3,11 +3,64 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
 // Lazily initialized Gemini AI Client
 let aiClient: GoogleGenAI | null = null;
+
+// Lazily initialized Supabase Client
+let supabaseClient: any = null;
+
+function getSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key || url.includes("your-project") || key.includes("your-anon")) {
+    return null;
+  }
+  if (!supabaseClient) {
+    try {
+      supabaseClient = createClient(url, key);
+    } catch (e) {
+      console.error("Failed to initialize Supabase client:", e);
+      return null;
+    }
+  }
+  return supabaseClient;
+}
+
+// In-memory CRM leads fallback store if Supabase is not active/configured
+let inMemoryLeads: any[] = [
+  {
+    id: "seed-jean-luc",
+    name: "Jean-Luc K.",
+    company: "Abidjan Resto-Livr",
+    status: "À revoir",
+    budget: 800000,
+    description: "Système intelligent de centralisation automatique des commandes de repas arrivant par WhatsApp à Abidjan, avec routage vers une base de données d'exploitation et alertes livreurs.",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "demo-marie-noelle",
+    name: "Marie-Noëlle A.",
+    company: "Kira Cosmetics Int.",
+    status: "En Closing",
+    budget: 1550000,
+    description: "Synchronisation d'inventaire de produits de beauté en temps réel sur 4 points de vente physiques à Lomé et e-commerce. Assistant IA WhatsApp relié pour automatisation des commandes.",
+    createdAt: new Date(Date.now() - 43200000).toISOString()
+  },
+  {
+    id: "demo-salim-d",
+    name: "Salim D.",
+    company: "Dakar Tech Logistics",
+    status: "Envoi Client",
+    budget: 2400000,
+    description: "Automatisation de dispatch logistique intelligent avec affectation dynamique des ordres de livraisons par rapport aux localisations géographiques.",
+    createdAt: new Date(Date.now() - 172800000).toISOString()
+  }
+];
+
 
 function parseGeminiJson(text: string | undefined): any {
   if (!text) return {};
@@ -674,6 +727,227 @@ ${buildBrandPrompt(brandIdentity)}`,
       res.status(500).json({ error: error.message || "Erreur interne de qualification IA" });
     }
   });
+
+  // 8. CRM Leads CRUD with Supabase & local memory fallback
+  app.get("/api/leads", async (req: Request, res: Response) => {
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from("leads")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.warn("Supabase selection error (likely missing table):", error.message);
+          return res.json({
+            success: true,
+            isFallback: true,
+            warning: "La table 'leads' n'a pas été détectée dans Supabase. Veuillez exécuter le script SQL fourni dans l'éditeur de requêtes de Supabase. Chargement des données locales.",
+            data: inMemoryLeads
+          });
+        }
+
+        const mapped = data.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          company: d.company,
+          status: d.status,
+          budget: Number(d.budget) || 0,
+          description: d.description || "",
+          createdAt: d.created_at
+        }));
+
+        return res.json({ success: true, isFallback: false, data: mapped });
+      } catch (e: any) {
+        console.error("Supabase lookup exception:", e);
+        return res.json({
+          success: true,
+          isFallback: true,
+          warning: "Accès Supabase indisponible. Chargement des données locales.",
+          data: inMemoryLeads
+        });
+      }
+    } else {
+      return res.json({
+        success: true,
+        isFallback: true,
+        warning: "Variables d'environnement Supabase manquantes dans les secrets (SUPABASE_URL / SUPABASE_ANON_KEY). Simulation locale active.",
+        data: inMemoryLeads
+      });
+    }
+  });
+
+  app.post("/api/leads", async (req: Request, res: Response) => {
+    const { name, company, status, budget, description } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: "Le nom du prospect est obligatoire." });
+    }
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const dbPayload = {
+          name,
+          company: company || null,
+          status: status || "À revoir",
+          budget: Number(budget) || 0,
+          description: description || ""
+        };
+
+        const { data, error } = await supabase
+          .from("leads")
+          .insert([dbPayload])
+          .select();
+
+        if (error) {
+          console.error("Supabase insert error:", error);
+          return res.status(500).json({ error: "Erreur d'insertion Supabase : " + error.message });
+        }
+
+        const inserted = data[0];
+        const mapped = {
+          id: inserted.id,
+          name: inserted.name,
+          company: inserted.company,
+          status: inserted.status,
+          budget: Number(inserted.budget) || 0,
+          description: inserted.description,
+          createdAt: inserted.created_at
+        };
+
+        return res.json({ success: true, isFallback: false, data: mapped });
+      } catch (e: any) {
+        console.error("Supabase insert exception:", e);
+        return res.status(500).json({ error: "Erreur serveur lors de l'accès Supabase" });
+      }
+    } else {
+      // Create local fallback
+      const newLead = {
+        id: "mem-" + Date.now().toString(),
+        name,
+        company: company || null,
+        status: status || "À revoir",
+        budget: Number(budget) || 0,
+        description: description || "",
+        createdAt: new Date().toISOString()
+      };
+      inMemoryLeads = [newLead, ...inMemoryLeads];
+      return res.json({ success: true, isFallback: true, data: newLead });
+    }
+  });
+
+  app.put("/api/leads/:id", async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { name, company, status, budget, description } = req.body;
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const updateData: any = {};
+        if (name !== undefined) updateData.name = name;
+        if (company !== undefined) updateData.company = company;
+        if (status !== undefined) updateData.status = status;
+        if (budget !== undefined) updateData.budget = Number(budget);
+        if (description !== undefined) updateData.description = description;
+
+        // Try local lookup if it's a fallback ID
+        if (id.startsWith("mem-")) {
+          const idx = inMemoryLeads.findIndex(l => l.id === id);
+          if (idx !== -1) {
+            inMemoryLeads[idx] = { ...inMemoryLeads[idx], ...updateData };
+            return res.json({ success: true, isFallback: true, data: inMemoryLeads[idx] });
+          }
+        }
+
+        const { data, error } = await supabase
+          .from("leads")
+          .update(updateData)
+          .eq("id", id)
+          .select();
+
+        if (error) {
+          console.error("Supabase update error:", error);
+          return res.status(500).json({ error: "Erreur de mise à jour Supabase : " + error.message });
+        }
+
+        if (!data || data.length === 0) {
+          // Check fallback memory in case of hybrid tracking
+          const idx = inMemoryLeads.findIndex(l => l.id === id);
+          if (idx !== -1) {
+            inMemoryLeads[idx] = { ...inMemoryLeads[idx], ...updateData };
+            return res.json({ success: true, isFallback: true, data: inMemoryLeads[idx] });
+          }
+          return res.status(404).json({ error: "Lead non détecté" });
+        }
+
+        const updated = data[0];
+        const mapped = {
+          id: updated.id,
+          name: updated.name,
+          company: updated.company,
+          status: updated.status,
+          budget: Number(updated.budget) || 0,
+          description: updated.description,
+          createdAt: updated.created_at
+        };
+
+        return res.json({ success: true, isFallback: false, data: mapped });
+      } catch (e: any) {
+        console.error("Supabase update exception:", e);
+        return res.status(500).json({ error: "Erreur lors de la mise à jour" });
+      }
+    } else {
+      // Memory Fallback Update
+      const idx = inMemoryLeads.findIndex(l => l.id === id);
+      if (idx !== -1) {
+        const updateData: any = {};
+        if (name !== undefined) updateData.name = name;
+        if (company !== undefined) updateData.company = company;
+        if (status !== undefined) updateData.status = status;
+        if (budget !== undefined) updateData.budget = Number(budget);
+        if (description !== undefined) updateData.description = description;
+
+        inMemoryLeads[idx] = { ...inMemoryLeads[idx], ...updateData };
+        return res.json({ success: true, isFallback: true, data: inMemoryLeads[idx] });
+      }
+      return res.status(404).json({ error: "Lead local non trouvé" });
+    }
+  });
+
+  app.delete("/api/leads/:id", async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        if (id.startsWith("mem-")) {
+          inMemoryLeads = inMemoryLeads.filter(l => l.id !== id);
+          return res.json({ success: true, isFallback: true });
+        }
+
+        const { error } = await supabase
+          .from("leads")
+          .delete()
+          .eq("id", id);
+
+        if (error) {
+          console.error("Supabase delete error:", error);
+          return res.status(500).json({ error: "Erreur de suppression Supabase : " + error.message });
+        }
+
+        inMemoryLeads = inMemoryLeads.filter(l => l.id !== id);
+        return res.json({ success: true, isFallback: false });
+      } catch (e: any) {
+        console.error("Supabase deletion exception:", e);
+        return res.status(500).json({ error: "Erreur lors de la suppression sur Supabase" });
+      }
+    } else {
+      inMemoryLeads = inMemoryLeads.filter(l => l.id !== id);
+      return res.json({ success: true, isFallback: true });
+    }
+  });
+
 
   // --- Vite & Production Assets Serving ---
 
