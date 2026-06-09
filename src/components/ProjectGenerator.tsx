@@ -23,10 +23,10 @@ interface ProjectGeneratorProps {
 
 export default function ProjectGenerator({ onSave }: ProjectGeneratorProps) {
   const [prompt, setPrompt] = useState('');
-  const [activeTab, setActiveTab] = useState<'sql' | 'ui' | 'api'>('sql');
-  const [result, setResult] = useState<{ sql: string; ui: string; api: string; apiKeyWarning?: boolean } | null>(null);
+  const [activeTab, setActiveTab] = useState<'sql' | 'ui' | 'api' | 'manual'>('sql');
+  const [result, setResult] = useState<{ sql: string; ui: string; api: string; manual: string; apiKeyWarning?: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [copiedTab, setCopiedTab] = useState<'sql' | 'ui' | 'api' | null>(null);
+  const [copiedTab, setCopiedTab] = useState<'sql' | 'ui' | 'api' | 'manual' | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Load the "Resto-Livr (Jean-Luc K.)" pre-filled demo
@@ -79,7 +79,8 @@ export default function ProjectGenerator({ onSave }: ProjectGeneratorProps) {
         setErrorMsg(null);
         setResult({
           apiKeyWarning: true,
-          sql: `-- =========================================================\n` +
+          sql: `[BLOCK_SQL]\n` +
+               `-- =========================================================\n` +
                `-- TABLE DES COURIERS (Livreurs d'Abidjan)\n` +
                `-- =========================================================\n` +
                `CREATE TABLE public.couriers (\n` +
@@ -106,7 +107,8 @@ export default function ProjectGenerator({ onSave }: ProjectGeneratorProps) {
                `-- INDEXATION POUR RECHERCHE RAPIDE\n` +
                `CREATE INDEX idx_orders_courier ON public.orders(courier_id);\n` +
                `CREATE INDEX idx_orders_status ON public.orders(status);\n`,
-          ui: `import React, { useState } from 'react';\n` +
+          ui: `[BLOCK_REACT]\n` +
+              `import React, { useState } from 'react';\n` +
               `import { Truck, Clock, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';\n\n` +
               `// Les types TypeScript\n` +
               `export interface Courier {\n` +
@@ -213,7 +215,8 @@ export default function ProjectGenerator({ onSave }: ProjectGeneratorProps) {
               `    </div>\n` +
               `  );\n` +
               `}\n`,
-          api: `import { createClient } from '@supabase/supabase-js';\n\n` +
+          api: `[BLOCK_API]\n` +
+               `import { createClient } from '@supabase/supabase-js';\n\n` +
                `// Initialisation client Supabase\n` +
                `const supabaseUrl = process.env.SUPABASE_URL || '';\n` +
                `const supabaseKey = process.env.SUPABASE_ANON_KEY || '';\n` +
@@ -282,7 +285,7 @@ export default function ProjectGenerator({ onSave }: ProjectGeneratorProps) {
     }
   };
 
-  const copyToClipboard = (text: string, type: 'sql' | 'ui' | 'api') => {
+  const copyToClipboard = (text: string, type: 'sql' | 'ui' | 'api' | 'manual') => {
     navigator.clipboard.writeText(text);
     setCopiedTab(type);
     setTimeout(() => setCopiedTab(null), 2000);
@@ -417,6 +420,18 @@ export default function ProjectGenerator({ onSave }: ProjectGeneratorProps) {
                   <Cpu className="h-3.5 w-3.5" />
                   [Logique API]
                 </button>
+
+                <button
+                  onClick={() => setActiveTab('manual')}
+                  className={`px-3 py-2 rounded-xl border text-[11px] font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === 'manual'
+                      ? 'bg-orange-500/10 border-orange-500/30 text-orange-400'
+                      : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <HelpCircle className="h-3.5 w-3.5" />
+                  [Manuel Utilisateur]
+                </button>
               </div>
 
               {/* Code window with title bar */}
@@ -429,12 +444,17 @@ export default function ProjectGenerator({ onSave }: ProjectGeneratorProps) {
                       {activeTab === 'sql' && 'supabase_schema.sql'}
                       {activeTab === 'ui' && 'RestoLivrStatusControl.tsx'}
                       {activeTab === 'api' && 'resto_livr_api.ts'}
+                      {activeTab === 'manual' && 'MANUAL.md'}
                     </span>
                   </div>
 
                   <button
                     onClick={() => {
-                      const codeText = activeTab === 'sql' ? result.sql : activeTab === 'ui' ? result.ui : result.api;
+                      const codeText = 
+                        activeTab === 'sql' ? result.sql : 
+                        activeTab === 'ui' ? result.ui : 
+                        activeTab === 'api' ? result.api : 
+                        result.manual || '';
                       copyToClipboard(codeText, activeTab);
                     }}
                     className="px-2.5 py-1 text-[10px] flex items-center gap-1 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-slate-300 transition-all cursor-pointer"
@@ -455,11 +475,12 @@ export default function ProjectGenerator({ onSave }: ProjectGeneratorProps) {
 
                 {/* Main scrollable code viewport */}
                 <div className="flex-1 overflow-auto max-h-[500px]">
-                  <pre className="text-[10.5px] leading-relaxed text-[#21ebcd] select-all font-mono whitespace-pre text-left">
+                  <pre className={`text-[10.5px] leading-relaxed select-all font-mono whitespace-pre text-left ${activeTab === 'manual' ? 'text-[#f5f5f7]' : 'text-[#21ebcd]'}`}>
                     <code>
                       {activeTab === 'sql' && result.sql}
                       {activeTab === 'ui' && result.ui}
                       {activeTab === 'api' && result.api}
+                      {activeTab === 'manual' && (result.manual || '')}
                     </code>
                   </pre>
                 </div>
