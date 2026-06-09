@@ -13,8 +13,13 @@ import {
   ChevronRight,
   BookOpen,
   MessageSquare,
-  Bot
+  Bot,
+  Fingerprint,
+  Sliders
 } from "lucide-react";
+
+import BrandHub from "./components/BrandHub";
+import BriefCRM from "./components/BriefCRM";
 
 import SocialHub from "./components/SocialHub";
 import CodeGenerator from "./components/CodeGenerator";
@@ -23,26 +28,106 @@ import DesignAssets from "./components/DesignAssets";
 import SavedLibrary from "./components/SavedLibrary";
 import ManyChatTunneler from "./components/ManyChatTunneler";
 import BriefAgent from "./components/BriefAgent";
+import CommercialAgent from "./components/CommercialAgent";
 import Toast, { ToastMessage } from "./components/Toast";
-import { SavedItem, ModuleType } from "./types";
+import { SavedItem, ModuleType, BrandIdentity } from "./types";
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ModuleType | 'dashboard'>('dashboard');
+  const [activeTab, setActiveTab] = useState<ModuleType | 'dashboard' | 'brand'>('dashboard');
+  const [dashboardView, setDashboardView] = useState<'overview' | 'crm'>('overview');
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  const [brandIdentity, setBrandIdentity] = useState<BrandIdentity>({
+    isActive: false,
+    targetAudience: "Créateurs de SaaS, Solopreneurs & PME innovantes",
+    editorialTone: "Professionnel, captivant, technique & pédagogique",
+    primaryColor: "#06b6d4",
+    secondaryColor: "#3b82f6",
+    keywords: "intelligence artificielle, no-code, automatisation, productivité, business augmenté"
+  });
 
   // Load saved assets on startup
   useEffect(() => {
     const saved = localStorage.getItem("digital_artisan_saved_items");
     if (saved) {
       try {
-        setSavedItems(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // Ensure our seed is always in the saved list if a seed was wiped or just merge it
+        if (!parsed.some((item: any) => item.id === "seed-jean-luc")) {
+          parsed.push(getJeanLucSeedItem());
+          localStorage.setItem("digital_artisan_saved_items", JSON.stringify(parsed));
+        }
+        setSavedItems(parsed);
       } catch (err) {
         console.error("Failed to parse saved items:", err);
       }
+    } else {
+      const seedItems = [getJeanLucSeedItem()];
+      setSavedItems(seedItems);
+      localStorage.setItem("digital_artisan_saved_items", JSON.stringify(seedItems));
+    }
+    const savedBrand = localStorage.getItem("digital_artisan_brand_identity");
+    if (savedBrand) {
+      try {
+        setBrandIdentity(JSON.parse(savedBrand));
+      } catch (err) {
+        console.error("Failed to parse brand identity:", err);
+      }
     }
   }, []);
+
+  // Helper function to return high quality seed data for prospect Jean-Luc K.
+  function getJeanLucSeedItem(): SavedItem {
+    return {
+      id: "seed-jean-luc",
+      type: "brief",
+      title: "Cahier des charges : Centrale WhatsApp Abidjan (Jean-Luc K.)",
+      createdAt: new Date().toISOString(),
+      status: "draft",
+      data: {
+        prd: {
+          summary: "Système intelligent de centralisation automatique des commandes de repas arrivant par WhatsApp à Abidjan, avec routage vers une base de données d'exploitation et alertes mobiles SMS/WhatsApp automatisées vers les livreurs.",
+          targetAudience: "Livreurs à vélomoteur localisés en zones urbaines (Abidjan), équipe administrative interne Resto-Livr et clients sur WhatsApp.",
+          features: [
+            { name: "Réception WhatsApp Automatisée", desc: "Interception des messages et mémos vocaux de commande sur le compte WhatsApp Business via webhooks Make.", priority: "Critique" },
+            { name: "Parser de Commandes IA (GPT-4)", desc: "Extraction automatique en JSON des plats commandés, quantité, prix, repères de livraison et profil client.", priority: "Haute" },
+            { name: "Centrale de Dispatch (Supabase)", desc: "Tableau de gestion unifiée remplaçant les processus papier et WhatsApp direct des livreurs.", priority: "Haute" },
+            { name: "Service de Notifications Drivers", desc: "Envoi automatique d'une fiche parcours et de l'itinéraire optimal en un clic par API WhatsApp.", priority: "Critique" },
+            { name: "Correction d'Adresses Locale", desc: "Saisie intelligente avec repères visuels d'Abidjan (pharmacies, stations-services, carrefours connus) pour contrer le manque de numérotation.", priority: "Moyenne" }
+          ],
+          techStack: "Supabase Database relationnelle, Scénarios Make (Integromat), API OpenAI (GPT-4), Notifications SMS/WhatsApp."
+        },
+        specifications: {
+          architecture: "Modèle NoCode / LowCode dynamique : Le bot WhatsApp reçoit la demande client. L'API OpenAI structure la commande dans la base centrale Supabase en temps réel. L'exploitant valide la commande qui distribue une notification automatique au livreur disponible par SMS webhooké.",
+          styleDirection: "Finition Mobile-First à contraste élevé. Optimisé pour la lisibilité sur route et pour économiser les batteries.",
+          technicalConstraints: "Forte résilience aux micro-coupures de réseau 3G/4G, adresses descriptives sans géolocalisation exacte (recherche sémantique par repères locaux).",
+          deliverables: [
+            "Script de création de base de données relationnelle Supabase",
+            "Scénario d'automatisation Make fully-operational",
+            "Console d'administration mobile-responsive pour dispatcher"
+          ]
+        },
+        quote: {
+          clientName: "Jean-Luc K. (Abidjan Resto-Livr)",
+          projectName: "Centrale WhatsApp & Dispatch",
+          items: [
+            { description: "Modélisation de la base unifiée de commandes & utilisateurs (Supabase)", hours: 10, rate: 25 },
+            { description: "Automatisation du canal d'écoute & IA de parsing des textes/vocaux (Make + OpenAI)", hours: 18, rate: 25 },
+            { description: "Console web d'affectation et d'alerte livreurs optimisée mobile", hours: 12, rate: 25 },
+            { description: "Tests en conditions de livraison réelles à Abidjan & ajustements", hours: 8, rate: 25 }
+          ],
+          milestones: [
+            { step: "Architecture Base & Webhooks", percentage: 40 },
+            { step: "Connectivité IA & Envoi Livreurs", percentage: 40 },
+            { step: "Recette terrain & Go-Live", percentage: 20 }
+          ],
+          subtotal: 1220 // 1220 EUR is approx 800,000 FCFA, perfectly matching.
+        }
+      }
+    };
+  }
 
   // Save new items
   const handleSaveItem = (type: ModuleType, title: string, data: any) => {
@@ -51,7 +136,8 @@ export default function App() {
       type,
       title,
       data,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      ...(type === 'brief' ? { status: 'draft' } : {}) // CRM default draft state
     };
     const updated = [newItem, ...savedItems];
     setSavedItems(updated);
@@ -60,9 +146,57 @@ export default function App() {
     setToast({
       id: newItem.id,
       title: "Élément enregistré !",
-      description: `"${title}" a été ajouté avec succès à votre Bibliothèque.`,
+      description: `"${title}" a été ajouté avec un statut initial de Cadrage dans votre Cockpit.`,
       type
     });
+  };
+
+  // Update item status for CRM Kanban pipeline
+  const handleUpdateItemStatus = (id: string, status: 'draft' | 'sent' | 'won' | 'lost') => {
+    const updated = savedItems.map(item => item.id === id ? { ...item, status } : item);
+    setSavedItems(updated);
+    localStorage.setItem("digital_artisan_saved_items", JSON.stringify(updated));
+
+    const itemObj = savedItems.find(i => i.id === id);
+    if (itemObj) {
+      const frStatus = status === 'draft' ? 'À revoir' : status === 'sent' ? 'Envoyé' : status === 'won' ? 'Signé 🚀' : 'Sans suite';
+      setToast({
+        id,
+        title: `Index CRM mis à jour`,
+        description: `Le projet "${itemObj.title.replace("Brief: ", "")}" est classé : "${frStatus}"`,
+        type: 'brief'
+      });
+    }
+  };
+
+  // Save brand identity setting changes
+  const handleSaveBrandIdentity = (brand: BrandIdentity) => {
+    setBrandIdentity(brand);
+    localStorage.setItem("digital_artisan_brand_identity", JSON.stringify(brand));
+  };
+
+  // Calculate client brief quotes total financial sums for pipeline CRM metrics
+  const calculateCRMRevenue = () => {
+    let won = 0;
+    let sent = 0;
+    let draft = 0;
+
+    savedItems.forEach(item => {
+      if (item.type === 'brief') {
+        const sub = item.data?.calculatedTotals?.subtotal || item.data?.quote?.subtotal || 0;
+        let val = sub;
+        if (!val && item.data?.quote?.items) {
+          val = item.data.quote.items.reduce((acc: number, current: any) => acc + (Number(current.hours || 0) * Number(current.rate || 0)), 0);
+        }
+        
+        const status = item.status || 'draft';
+        if (status === 'won') won += val;
+        else if (status === 'sent') sent += val;
+        else if (status === 'draft') draft += val;
+      }
+    });
+
+    return { won, sent, draft, total: won + sent + draft };
   };
 
   // Delete saved item
@@ -79,12 +213,14 @@ export default function App() {
   // Navigation menu items
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Laptop },
+    { id: 'brand', label: 'ADN de Marque', icon: Fingerprint, badge: 'Hub' },
     { id: 'social', label: 'Réseaux & Branding', icon: Sparkles, badge: 'Social' },
     { id: 'code', label: 'Composants & Scripting', icon: Code2, badge: 'Dev' },
     { id: 'copy', label: 'Assistant Copy & SEO', icon: FileText, badge: 'Copy' },
     { id: 'design', label: 'Moodboard & SVG', icon: Palette, badge: 'Design' },
     { id: 'manychat', label: 'Auto-Tunnels IA', icon: MessageSquare, badge: 'ManyChat' },
     { id: 'brief', label: 'Brief IA & Devis', icon: Bot, badge: 'Agent' },
+    { id: 'commercial-agent', label: 'Agent Commercial ✦', icon: Bot, badge: 'DC' },
     { id: 'saved', label: 'Bibliothèque', icon: Heart, count: savedItems.length }
   ];
 
@@ -267,7 +403,7 @@ export default function App() {
             /* --- EXCLUSIVE DASHBOARD LANDING OVERVIEW --- */
             <div className="space-y-10 animate-fade-in flex-1 flex flex-col justify-between">
               
-              <div className="space-y-10">
+              <div className="space-y-6">
                 {/* Header Title Greeting */}
                 <div className="space-y-2">
                   <h1 className="text-2xl sm:text-3xl font-light tracking-tight text-white flex items-center gap-2.5 font-display">
@@ -278,6 +414,53 @@ export default function App() {
                     Bienvenue dans ton espace de travail augmenté. L'intelligence artificielle n'est pas un accessoire, c'est ton bras droit technique, créatif et commercial au quotidien.
                   </p>
                 </div>
+
+                {/* Dashboard Mode Switcher */}
+                <div className="flex border-b border-white/5 pb-1 gap-2">
+                  <button
+                    onClick={() => setDashboardView('overview')}
+                    className={`py-2.5 px-3 sm:px-4 text-xs font-bold uppercase tracking-wider transition-all border-b-2 font-mono flex items-center gap-2 cursor-pointer ${
+                      dashboardView === 'overview'
+                        ? "border-cyan-400 text-white font-bold"
+                        : "border-transparent text-slate-500 hover:text-white"
+                    }`}
+                  >
+                    🚀 Cockpit Outils & Métriques
+                  </button>
+                  <button
+                    onClick={() => setDashboardView('crm')}
+                    className={`py-2.5 px-3 sm:px-4 text-xs font-bold uppercase tracking-wider transition-all border-b-2 font-mono flex items-center gap-2 cursor-pointer ${
+                      dashboardView === 'crm'
+                        ? "border-cyan-400 text-cyan-400 font-bold"
+                        : "border-transparent text-slate-500 hover:text-white"
+                    }`}
+                  >
+                    📊 Pipeline Kanban CRM
+                    {savedItems.filter(i => i.type === 'brief').length > 0 && (
+                      <span className="text-[9px] bg-cyan-950 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-800 font-bold">
+                        {savedItems.filter(i => i.type === 'brief').length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {dashboardView === 'crm' ? (
+                <BriefCRM 
+                  items={savedItems} 
+                  onUpdateStatus={handleUpdateItemStatus} 
+                  onDelete={handleDeleteItem} 
+                  onNavigateToTab={(t) => {
+                    if (t === 'saved') {
+                      setActiveTab('saved');
+                    } else {
+                      setActiveTab(t);
+                    }
+                  }} 
+                />
+              ) : (
+                <>
+                  <div className="space-y-6">
 
                 {/* Quick Stats Grid with modern tech cards - Now accounting for all 6 Module Types! */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -587,15 +770,31 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="bg-cyan-950/20 border border-cyan-800/20 px-3.5 py-2.5 rounded-xl space-y-1">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold font-mono text-cyan-400 uppercase tracking-wide">
-                        <span className="h-1.5 w-1.5 bg-cyan-400 rounded-full animate-ping shrink-0" />
-                        Acquisition augmentée
-                      </div>
-                      <p className="text-[11px] font-sans text-slate-300 leading-normal">
-                        Chaque brief client interactif & tunnel automatisé ManyChat déploie un levier commercial permanent disponible 24h/24.
-                      </p>
-                    </div>
+                    {(() => {
+                      const revenue = calculateCRMRevenue();
+                      return (
+                        <div className="bg-cyan-950/15 border border-cyan-500/10 px-3.5 py-2.5 rounded-xl space-y-2">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold font-mono text-cyan-400 uppercase tracking-wide">
+                            <span className="h-1.5 w-1.5 bg-cyan-400 rounded-full animate-ping shrink-0" />
+                            Performances CRM & Chiffre d'Affaire
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+                            <div className="space-y-0.5">
+                              <span className="text-slate-500 block text-[9px]">GAGNÉ / SIGNÉ :</span>
+                              <span className="text-emerald-400 font-bold font-sans text-xs">{revenue.won.toLocaleString('fr-FR')} € HT</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              <span className="text-slate-500 block text-[9px]">EN DISCUSSION :</span>
+                              <span className="text-blue-400 font-bold font-sans text-xs">{revenue.sent.toLocaleString('fr-FR')} € HT</span>
+                            </div>
+                          </div>
+                          <div className="pt-2 border-t border-white/5 flex justify-between items-center text-[10px] font-mono">
+                            <span className="text-slate-400 font-bold">TOTAL POTENTIEL :</span>
+                            <span className="text-cyan-300 font-extrabold text-[11px]">{revenue.total.toLocaleString('fr-FR')} € HT</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -618,16 +817,21 @@ export default function App() {
                 </button>
               </div>
 
+                  </>
+                )}
+
             </div>
           ) : (
             /* --- MODULAR COMPONENTS VIEW --- */
             <div className="flex-1">
-              {activeTab === 'social' && <SocialHub onSave={handleSaveItem} />}
+              {activeTab === 'brand' && <BrandHub brandIdentity={brandIdentity} onSave={handleSaveBrandIdentity} />}
+              {activeTab === 'social' && <SocialHub onSave={handleSaveItem} brandIdentity={brandIdentity} />}
               {activeTab === 'code' && <CodeGenerator onSave={handleSaveItem} />}
               {activeTab === 'copy' && <CopySEO onSave={handleSaveItem} />}
               {activeTab === 'design' && <DesignAssets onSave={handleSaveItem} />}
               {activeTab === 'manychat' && <ManyChatTunneler onSave={handleSaveItem} />}
               {activeTab === 'brief' && <BriefAgent onSave={handleSaveItem} />}
+              {activeTab === 'commercial-agent' && <CommercialAgent onSaveBrief={handleSaveItem} onNavigateToTab={handleNavigateToTab} />}
               {activeTab === 'saved' && (
                 <SavedLibrary 
                   items={savedItems} 

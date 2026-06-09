@@ -1,4 +1,4 @@
-export type ModuleType = 'social' | 'code' | 'copy' | 'design' | 'manychat' | 'brief' | 'saved';
+export type ModuleType = 'social' | 'code' | 'copy' | 'design' | 'manychat' | 'brief' | 'saved' | 'commercial-agent';
 
 export interface SocialPost {
   id: string;
@@ -68,4 +68,17 @@ export interface SavedItem {
   title: string;
   data: any;
   createdAt: string;
+  status?: 'draft' | 'sent' | 'won' | 'lost'; // For Mini CRM / Pipeline de Briefs
 }
+
+export interface BrandIdentity {
+  isActive: boolean;
+  targetAudience: string;
+  editorialTone: string;
+  primaryColor: string;
+  secondaryColor: string;
+  keywords: string;
+  brandPreset?: string;
+}
+
+

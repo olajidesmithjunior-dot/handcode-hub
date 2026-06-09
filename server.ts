@@ -124,6 +124,19 @@ async function generateContentWithRetry(params: any, maxRetries = 3): Promise<an
   }
 }
 
+function buildBrandPrompt(brandIdentity: any): string {
+  if (!brandIdentity || !brandIdentity.isActive) {
+    return "";
+  }
+  return `\n[ALIGNEMENT DE MARQUE MANDATAIRE]
+Vous devez impérativement aligner la génération de contenu avec l'identité de marque configurée ci-dessous :
+- Cible Marketing visée : "${brandIdentity.targetAudience}"
+- Ton de voix éditorial signature : "${brandIdentity.editorialTone}"
+- Mots-clés de marque stratégiques à intégrer ou à respecter thématiquement : "${brandIdentity.keywords}"
+- Couleurs de marque thématiques (si pertinent) : Primaire: "${brandIdentity.primaryColor}", Secondaire: "${brandIdentity.secondaryColor}"
+Assurez-vous de calquer l'ambiance, l'esthétique, le vocabulaire et le style éditorial sur cette marque.\n`;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -140,7 +153,7 @@ async function startServer() {
   // 1. Social Post Generator
   app.post("/api/generate-social", async (req: Request, res: Response) => {
     try {
-      const { topic, tone } = req.body;
+      const { topic, tone, brandIdentity } = req.body;
       if (!topic) {
         return res.status(400).json({ error: "Le sujet ou projet est obligatoire." });
       }
@@ -150,6 +163,7 @@ async function startServer() {
         contents: `Génère des variantes de posts pour les réseaux sociaux (LinkedIn, Twitter/X, Instagram) basées sur le sujet suivant.
 Sujet: "${topic}"
 Ton de voix: "${tone || 'professionnel'}"
+${buildBrandPrompt(brandIdentity)}
 
 Directives de formatage:
 - LinkedIn: Un post structuré avec un super hook, des paragraphes aérés, des puces (bullet points) élégantes et 3-5 hashtags ciblés.
@@ -217,7 +231,7 @@ Pour Tailwind, utilise des classes esthétiques et modernes (effets sombres prem
   // 3. Landing Page UX Copywriter & SEO Builder
   app.post("/api/generate-copy", async (req: Request, res: Response) => {
     try {
-      const { idea } = req.body;
+      const { idea, brandIdentity } = req.body;
       if (!idea) {
         return res.status(400).json({ error: "La description de votre idée est requise." });
       }
@@ -226,6 +240,7 @@ Pour Tailwind, utilise des classes esthétiques et modernes (effets sombres prem
         model: "gemini-3.5-flash",
         contents: `Rédige une structure complète de Landing Page copywritée en UX, accompagnée des éléments de référencement SEO.
 Idée du projet / SaaS: "${idea}"
+${buildBrandPrompt(brandIdentity)}
 
 Fournis des sections pour:
 - Hero: Titre percutant, sous-titre explicatif, texte d'appel à l'action.
@@ -298,7 +313,7 @@ Fournis des sections pour:
   // 4. Design Asset & SVG Generator
   app.post("/api/generate-design", async (req: Request, res: Response) => {
     try {
-      const { prompt, style } = req.body;
+      const { prompt, style, brandIdentity } = req.body;
       if (!prompt) {
         return res.status(400).json({ error: "Le prompt ou le concept de design est requis." });
       }
@@ -308,6 +323,7 @@ Fournis des sections pour:
         contents: `Crée un guide de design d'identité visuelle moderne et génère un magnifique élément vectoriel SVG brut pour un solo Digital Artisan.
 Prompt de concept: "${prompt}"
 Ligne esthétique préférée: "${style || 'Premium Minimalist Dark'}"
+${buildBrandPrompt(brandIdentity)}
 
 Fournis:
 1. Une palette de 5 couleurs harmonieuses avec code hexadécimal et rôle précis de chaque couleur (ex: Primary, Secondary, Background, Card, Text, Accent).
@@ -367,7 +383,8 @@ Fournis:
         objective,
         ctaText,
         ctaUrl,
-        addLeadCapture
+        addLeadCapture,
+        brandIdentity
       } = req.body;
 
       // Extract message with robust fallbacks for standard ManyChat webhooks
@@ -392,6 +409,7 @@ Informations du contexte :
 - Objectif de conversion à atteindre: "${botObjective}"
 - Texte du bouton d'appel à l'action final: "${btnText}"
 - Capturer l'email en option ? : ${addLeadCapture ? "Oui, invite poliment l'abonné à donner son email s'il le souhaite de manière fluide dans ton message" : "Non, pas la peine de demander"}
+${buildBrandPrompt(brandIdentity)}
 
 Règles impératives :
 1. Sois extrêmement concis (maximum 2 ou 3 phrases). Sur Instagram, l'attention est très courte !
@@ -452,7 +470,7 @@ Règles impératives :
   // 6. Brief AI & Dynamic Documents Generator
   app.post("/api/generate-brief", async (req: Request, res: Response) => {
     try {
-      const { answers, clientName, projectName } = req.body;
+      const { answers, clientName, projectName, brandIdentity } = req.body;
       if (!answers) {
         return res.status(400).json({ error: "Les réponses de cadrage sont requises." });
       }
@@ -462,6 +480,7 @@ Règles impératives :
         contents: `Génère un dossier complet de cadrage de projet (PRD, Cahier des charges technique et Devis chiffré) basé sur les informations client suivantes :
 Nom du client: "${clientName || 'Nouveau Client'}"
 Nom du projet: "${projectName || 'Projet Innovant'}"
+${buildBrandPrompt(brandIdentity)}
 
 Réponses au brief d'évaluation :
 ${JSON.stringify(answers, null, 2)}
