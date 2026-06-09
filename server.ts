@@ -585,6 +585,96 @@ Directives impératives pour chaque section :
     }
   });
 
+  // 7. Dynamic AI Commercial Agent Qualification & Advisory
+  app.post("/api/qualify-lead", async (req: Request, res: Response) => {
+    try {
+      const { name, company, problem, budgetFCFA, timelineWeeks, brandIdentity } = req.body;
+      if (!name || !problem) {
+        return res.status(400).json({ error: "Le nom du prospect et la description de son problème sont obligatoires." });
+      }
+
+      const budgetVal = Number(budgetFCFA) || 0;
+      const timelineVal = Number(timelineWeeks) || 3;
+
+      const response = await generateContentWithRetry({
+        model: "gemini-3.5-flash",
+        contents: `Tu es le Directeur Commercial Virtuel de l'agence handCode spécialisée dans les automatisations d'artisanat numérique, les bases de données relationnelles Supabase et les connecteurs NoCode Make (Integromat).
+Analyse la demande de ce prospect entrant :
+- Nom : "${name}"
+- Entreprise/Projet : "${company || 'Non spécifié'}"
+- Problème principal à automatiser : "${problem}"
+- Budget estimé : ${budgetVal} FCFA
+- Délai/Échéance souhaitée : ${timelineVal} semaines
+
+RÈGLES DE DÉCISION ET QUALIFICATION :
+1. Critère de Budget : Notre seuil d'intervention pour un projet d'agence clé en main personnalisé est de 1 000 000 FCFA.
+   - Si le budget est >= 1 000 000 FCFA, la décision est "QUALIFIED".
+   - Si le budget est < 1 000 000 FCFA, la décision est "DISQUALIFIED".
+2. Critère de Maturité : Évalue si le besoin est clair et technique. Une demande claire décrivant des flux ou des étapes d'exploitation précis doit obtenir un score élevé.
+3. Critère de Faisabilité (Urgence & Adéquation Stacks) : Évalue si le projet est réalisable rapidement (3 semaines) avec nos stacks (Supabase, Make, NoCode).
+
+RÉPONSES ÉDITORIALES ATTENDUES :
+- prospectResponse : Rédige une réponse professionnelle, polie et directe en français :
+  * Si qualifié : Confirme l'intérêt du projet de manière experte. Valide la faisabilité avec nos stacks (Supabase, Make). Propose un créneau court de rendez-vous de diagnostic (lien Calendly : https://calendly.com/handcode/cadrage).
+  * Si non-qualifié : Rédige un e-mail poli et bienveillant. Explique que nous ne pouvons pas accompagner ce projet sur-mesure clé en main sous format agence en raison de notre seuil critique de budget (1 000 000 FCFA). Donne un conseil d'architecture technique concret, pragmatique et orienté (étape par étape avec Make, Google Sheets ou d'autres outils simples) pour les aider à tester leur concept seuls.
+  * Structure requise pour l'e-mail : [Accroche personnalisée] + [Validation de la faisabilité] + [Prochaine étape ou conseil d'architecture alternatif].
+- slackReport : Écris un rapport récapitulatif destiné à Slack pour le fondateur de l'agence. Il doit tenir en 3 phrases maximum absolue, indiquant les enjeux de l'opportunité et la décision de triage prise.
+${buildBrandPrompt(brandIdentity)}`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              decision: { type: Type.STRING, description: "Doit être EXACTEMENT 'QUALIFIED' ou 'DISQUALIFIED'" },
+              criteria: {
+                type: Type.OBJECT,
+                properties: {
+                  budget: {
+                    type: Type.OBJECT,
+                    properties: {
+                      score: { type: Type.NUMBER, description: "Score sur 100" },
+                      text: { type: Type.STRING, description: "Explication concise de l'adéquation budgétaire en FCFA face au seuil de 1M" },
+                      status: { type: Type.STRING, description: "'success', 'warning' ou 'error'" }
+                    },
+                    required: ["score", "text", "status"]
+                  },
+                  maturity: {
+                    type: Type.OBJECT,
+                    properties: {
+                      score: { type: Type.NUMBER, description: "Score sur 100" },
+                      text: { type: Type.STRING, description: "Explication de la maturité technique du besoin" },
+                      status: { type: Type.STRING, description: "'success', 'warning' ou 'error'" }
+                    },
+                    required: ["score", "text", "status"]
+                  },
+                  feasibility: {
+                    type: Type.OBJECT,
+                    properties: {
+                      score: { type: Type.NUMBER, description: "Score sur 100" },
+                      text: { type: Type.STRING, description: "Faisabilité technique avec Supabase/Make" },
+                      status: { type: Type.STRING, description: "'success', 'warning' ou 'error'" }
+                    },
+                    required: ["score", "text", "status"]
+                  }
+                },
+                required: ["budget", "maturity", "feasibility"]
+              },
+              prospectResponse: { type: Type.STRING, description: "Le courrier électronique complet rédigé avec structure" },
+              slackReport: { type: Type.STRING, description: "Le rapport Slack condensé pour le Dashboard (Maximum 3 phrases)" }
+            },
+            required: ["decision", "criteria", "prospectResponse", "slackReport"]
+          }
+        }
+      });
+
+      const data = parseGeminiJson(response.text);
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error("Error in AI qualification endpoint:", error);
+      res.status(500).json({ error: error.message || "Erreur interne de qualification IA" });
+    }
+  });
+
   // --- Vite & Production Assets Serving ---
 
   if (process.env.NODE_ENV !== "production") {

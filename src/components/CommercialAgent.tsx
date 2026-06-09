@@ -108,17 +108,61 @@ export default function CommercialAgent({ onSaveBrief, onNavigateToTab }: Commer
     setIsSavedInHub(false);
   };
 
-  const triggerAnalysis = () => {
-    if (!form.name || !form.company || !form.problem) return;
+  const triggerAnalysis = async () => {
+    if (!form.name || !form.problem) return;
     setAnalyzing(true);
     setAnalysisCompleted(false);
     setIsSavedInHub(false);
 
-    setTimeout(() => {
-      // Step 1: Decision on budget threshold (1 000 000 FCFA)
+    try {
+      const response = await fetch("/api/qualify-lead", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: form.name,
+          company: form.company,
+          problem: form.problem,
+          budgetFCFA: form.budgetFCFA,
+          timelineWeeks: form.timelineWeeks
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur de communication : " + response.status);
+      }
+
+      const resData = await response.json();
+      if (resData.success && resData.data) {
+        const aiData = resData.data;
+        setDecision(aiData.decision || "DISQUALIFIED");
+        setCriteria({
+          budget: {
+            score: aiData.criteria?.budget?.score ?? (form.budgetFCFA >= 1000000 ? 100 : 80),
+            text: aiData.criteria?.budget?.text ?? "",
+            status: aiData.criteria?.budget?.status ?? (form.budgetFCFA >= 1000000 ? "success" : "error")
+          },
+          maturity: {
+            score: aiData.criteria?.maturity?.score ?? 90,
+            text: aiData.criteria?.maturity?.text ?? "",
+            status: aiData.criteria?.maturity?.status ?? "success"
+          },
+          feasibility: {
+            score: aiData.criteria?.feasibility?.score ?? 95,
+            text: aiData.criteria?.feasibility?.text ?? "",
+            status: aiData.criteria?.feasibility?.status ?? "success"
+          }
+        });
+        setProspectResponse(aiData.prospectResponse || "");
+        setSlackReport(aiData.slackReport || "");
+      } else {
+        throw new Error("Format de réponse invalide");
+      }
+    } catch (err) {
+      console.warn("AI endpoint error, running local dynamic solver backup:", err);
+      // Run optimized client-side solver as backup
       const isQualified = form.budgetFCFA >= 1000000;
-      
-      // Step 2: Establish metrics scores
       const budgetStatus = isQualified ? "success" : "error";
       const budgetText = `${form.budgetFCFA.toLocaleString("fr-FR")} FCFA ${isQualified ? "(Conforme au seuil minimum d'accompagnement de 1 000 000 FCFA)" : "(Inférieur au seuil minimum requis pour une intégration sur-mesure de 1 000 000 FCFA)"}`;
       
@@ -127,7 +171,7 @@ export default function CommercialAgent({ onSaveBrief, onNavigateToTab }: Commer
       const maturityText = isMaturityHigh ? "Élevée : Résolution de problème et routage fonctionnel détaillés" : "Moyenne : Besoins à clarifier via un atelier d'idéation";
 
       const feasibilityScore = 95;
-      const feasibilityText = "Optimale : Réalisable en NoCode / LowCode (Supabase DB, intégrateur Make, WhatsApp Business API)";
+      const feasibilityText = `Optimale : Réalisable en NoCode / LowCode (Supabase DB, intégrateur Make, WhatsApp Business API).`;
 
       setDecision(isQualified ? "QUALIFIED" : "DISQUALIFIED");
       setCriteria({
@@ -136,12 +180,12 @@ export default function CommercialAgent({ onSaveBrief, onNavigateToTab }: Commer
         feasibility: { score: feasibilityScore, text: feasibilityText, status: "success" }
       });
 
-      // Step 3: Write response for the prospect (French language, professional, highly contextual, compliant with [Hook] + [Feasibility] + [NextStep])
+      // Write highly custom responses based on direct calculations
       if (isQualified) {
         setProspectResponse(
           `Bonjour ${form.name},\n\n` +
-          `J'ai bien pris connaissance des besoins de ${form.company} concernant : "${form.problem.substring(0, 80)}...". C'est un cas d'usage classique de notre atelier de développement d'automatisation.\n\n` +
-          `**Validation de faisabilité :**\n` +
+          `J'ai bien pris connaissance des besoins de ${form.company} concernant : "${form.problem.substring(0, 100)}...". C'est un cas d'usage classique de notre atelier de développement d'automatisation.\n\n` +
+          `**Validation de de faisabilité :**\n` +
           `Votre écosystème est 100% réalisable avec notre stack de prédilection. La mise en place d'une architecture unifiée sur Supabase Database connectée à l'API WhatsApp Business via des scénarios multi-étapes sous Make permettra de centraliser l'intégralité des commandes de manière stable en moins de ${form.timelineWeeks} semaines.\n\n` +
           `**Prochaine étape :**\n` +
           `Au vu de votre enveloppe budgétaire de ${form.budgetFCFA.toLocaleString("fr-FR")} FCFA, nous confirmons que le cahier des charges s'inscrit parfaitement dans notre scope. Je vous propose de planifier une session d'alignement de 15 minutes avec notre Architecte Fondateur pour valider les repères techniques. Veuillez choisir le créneau de votre convenance sur notre calendrier de diagnostic : https://calendly.com/handcode/cadrage \n\n` +
@@ -153,34 +197,34 @@ export default function CommercialAgent({ onSaveBrief, onNavigateToTab }: Commer
           `🚨 **Nouveau Lead QUALIFIÉ (handCode CRM)**\n` +
           `• **Client** : ${form.name} (${form.company})\n` +
           `• **Opportunité** : Centrale d'automatisation commandée via Make\n` +
-          `• **Budget estimé** : ${form.budgetFCFA.toLocaleString("fr-FR")} FCFA (~${Math.round(form.budgetFCFA / 655.957)} €) | Répartition validée dans le Pipeline.`
+          `• **Budget estimé** : ${form.budgetFCFA.toLocaleString("fr-FR")} FCFA (~${Math.round(form.budgetFCFA / 655.957)} €) | Répartition validée.`
         );
       } else {
         setProspectResponse(
           `Bonjour ${form.name},\n\n` +
           `Je vous remercie chaleureusement pour l'intérêt que vous portez à l'expertise d'automatisation de l'agence handCode.\n\n` +
           `**Validation de faisabilité :**\n` +
-          `Votre projet de centralisation des commandes WhatsApp associé à la notification instantanée de vos livreurs à Abidjan est de l'ordre du faisable absolu. C'est typiquement le type de flux transactionnels performants que nous aimons concevoir à l'aide de bases relationnelles de type Supabase.\n\n` +
+          `Votre projet de centralisation des commandes ${form.company ? 'de ' + form.company : ''} associé à des notifications stables est de l'ordre du faisable absolu. C'est typiquement le type de flux transactionnels performants que nous aimons concevoir à l'aide de bases relationnelles de type Supabase.\n\n` +
           `**Conseil orienté & Redirection :**\n` +
           `Néanmoins, au vu de votre enveloppe budgétaire indicative de ${form.budgetFCFA.toLocaleString("fr-FR")} FCFA (qui se situe en deçà de notre seuil critique d'accompagnement sur-mesure clé en main qui est fixé à 1 000 000 FCFA), nous ne serons malheureusement pas en mesure d'opérer la conception intégralement au format agence.\n\n` +
-          `Pour vous permettre de valider votre preuve de concept en 3 semaines, voici mes conseils d'architecture à assembler vous-même :\n` +
-          `1. **Canal WhatsApp** : Utilisez des solutions comme Wati ou ManyChat. Vous pouvez poser des questions automatisées très simplement pour copier-coller les commandes.\n` +
-          `2. **Centralisation** : Branchez un webhook Make (gratuit jusqu'à 1000 opérations/mois) pour copier ces éléments structurés directement de WhatsApp vers un tableur en ligne comme Google Sheets.\n` +
-          `3. **Lancement de livraison** : Envoyez automatiquement une alerte ou un itinéraire à vos livreurs par webhook en se basant sur des pharmacies ou stations connues à l'aide de l'intégration SMS d'un opérateur.\n\n` +
+          `Pour vous permettre de valider votre preuve de concept rapidement, voici mes conseils d'architecture à assembler vous-même :\n` +
+          `1. **Canal Client** : Utilisez des solutions comme Wati, ManyChat ou Twilio. Vous pouvez poser des questions automatisées très simplement pour copier-coller les commandes.\n` +
+          `2. **Centralisation** : Branchez un webhook Make (Integromat) pour copier ces éléments structurés directement vers un tableur en ligne comme Google Sheets ou une base de données collaborative Airtable.\n` +
+          `3. **Lancement de livraison** : Envoyez automatiquement une alerte ou un itinéraire à vos livreurs par webhook en se basant sur des pharmacies ou stations connues à l'aide d'un service d'envoi SMS automatique.\n\n` +
           `Je reste à l'écoute de votre évolution s'il y a lieu,\n` +
           `Le Directeur Commercial Virtuel de handCode`
         );
 
         setSlackReport(
           `📩 **Notification Lead Non-Qualifié (Budget < 1 000 000 FCFA)**\n` +
-          `Le prospect ${form.name} (${form.company}) a été réorienté automatiquement.\n` +
+          `Le prospect ${form.name} (${form.company || 'Sans Entreprise'}) a été réorienté automatiquement.\n` +
           `Sujet : ${form.problem.substring(0, 60)}... | Budget : ${form.budgetFCFA.toLocaleString("fr-FR")} FCFA.`
         );
       }
-
+    } finally {
       setAnalyzing(false);
       setAnalysisCompleted(true);
-    }, 1500);
+    }
   };
 
   const copyToClipboard = (text: string, type: "response" | "slack") => {
